@@ -16,21 +16,24 @@ struct MainWindowView: View {
 
     enum Feature: String, CaseIterable, Identifiable {
         case pad = "Pad"
-        // Future features:
-        // case pass = "Pass"
-        // case drive = "Drive"
+        case pass = "Pass"
+        case drive = "Drive"
 
         var id: String { rawValue }
 
         var icon: String {
             switch self {
             case .pad: return "list.clipboard"
+            case .pass: return "key.fill"
+            case .drive: return "externaldrive.fill"
             }
         }
 
         var description: String {
             switch self {
             case .pad: return "Clipboard & text sharing"
+            case .pass: return "Password manager"
+            case .drive: return "File storage"
             }
         }
     }
@@ -76,7 +79,37 @@ struct MainWindowView: View {
         switch feature {
         case .pad:
             PadDetailView(authService: authService, padService: padService)
+        case .pass:
+            PassPlaceholderView()
+        case .drive:
+            DrivePlaceholderView()
         }
+    }
+}
+
+// MARK: - Pass Placeholder
+
+private struct PassPlaceholderView: View {
+    var body: some View {
+        ContentUnavailableView(
+            "Password Manager",
+            systemImage: "key.fill",
+            description: Text("Coming soon")
+        )
+        .navigationTitle("Pass")
+    }
+}
+
+// MARK: - Drive Placeholder
+
+private struct DrivePlaceholderView: View {
+    var body: some View {
+        ContentUnavailableView(
+            "File Storage",
+            systemImage: "externaldrive.fill",
+            description: Text("Coming soon")
+        )
+        .navigationTitle("Drive")
     }
 }
 
