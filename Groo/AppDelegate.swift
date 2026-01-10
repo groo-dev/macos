@@ -49,6 +49,104 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    // MARK: - URL Handling
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            handleURL(url)
+        }
+    }
+
+    private func handleURL(_ url: URL) {
+        guard url.scheme == "groo" else { return }
+
+        switch url.host {
+        case "share":
+            handleShareExtensionContent()
+        default:
+            break
+        }
+    }
+
+    private func handleShareExtensionContent() {
+        // Get shared container URL
+        guard let containerURL = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: "group.dev.groo.app"
+        ) else {
+            print("Could not access shared container")
+            return
+        }
+
+        let shareDir = containerURL.appendingPathComponent("ShareExtension", isDirectory: true)
+        let dataURL = shareDir.appendingPathComponent("pending.json")
+
+        guard FileManager.default.fileExists(atPath: dataURL.path) else {
+            print("No pending share data")
+            return
+        }
+
+        // Read and process share data
+        do {
+            let data = try Data(contentsOf: dataURL)
+            let shareData = try JSONDecoder().decode(ShareExtensionData.self, from: data)
+
+            // Process items
+            Task { @MainActor in
+                await processSharedItems(shareData.items, in: shareDir)
+
+                // Clean up
+                try? FileManager.default.removeItem(at: dataURL)
+            }
+        } catch {
+            print("Failed to process share data: \(error)")
+        }
+    }
+
+    private func processSharedItems(_ items: [ShareExtensionItem], in shareDir: URL) async {
+        guard padService.isUnlocked else {
+            // Show popover for authentication
+            if let button = statusItem?.button {
+                popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            return
+        }
+
+        for item in items {
+            do {
+                switch item.type {
+                case "text":
+                    try await padService.addItem(text: item.content)
+
+                case "url":
+                    try await padService.addItem(text: item.content)
+
+                case "file":
+                    if let filePath = item.filePath {
+                        let fileURL = URL(fileURLWithPath: filePath)
+                        let data = try Data(contentsOf: fileURL)
+                        let name = item.content
+                        let ext = (name as NSString).pathExtension
+                        let type = ext.isEmpty ? "application/octet-stream" : "application/\(ext)"
+
+                        _ = try await padService.uploadFile(name: name, type: type, data: data)
+
+                        // Clean up copied file
+                        try? FileManager.default.removeItem(at: fileURL)
+                    }
+
+                default:
+                    break
+                }
+            } catch {
+                print("Failed to process shared item: \(error)")
+            }
+        }
+
+        // Refresh to show new items
+        await padService.refresh()
+    }
+
     // MARK: - Services Setup
 
     private func setupServices() {
@@ -242,4 +340,16 @@ extension AppDelegate: NSDraggingDestination {
             try? await padService.addItem(text: text)
         }
     }
+}
+
+// MARK: - Share Extension Models
+
+struct ShareExtensionData: Codable {
+    let items: [ShareExtensionItem]
+}
+
+struct ShareExtensionItem: Codable {
+    let type: String  // "text", "url", "file"
+    let content: String
+    let filePath: String?
 }
