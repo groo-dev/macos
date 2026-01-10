@@ -232,10 +232,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     width: Theme.Size.mainWindowWidth,
                     height: Theme.Size.mainWindowHeight
                 ),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
             )
+            window.titlebarAppearsTransparent = false
+            window.toolbarStyle = .unified
             window.title = "Groo"
             window.contentViewController = NSHostingController(rootView: contentView)
             window.center()

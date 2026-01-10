@@ -57,15 +57,6 @@ struct MainWindowView: View {
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 250)
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        columnVisibility = columnVisibility == .detailOnly ? .automatic : .detailOnly
-                    } label: {
-                        Image(systemName: "sidebar.left")
-                    }
-                }
-            }
         } detail: {
             // Detail view
             if let feature = selectedFeature {
@@ -78,40 +69,13 @@ struct MainWindowView: View {
                 )
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                // Refresh button
-                Button {
-                    Task {
-                        await padService.refresh()
-                    }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(padService.isLoading)
-                .help("Refresh")
-
-                // User menu
-                Menu {
-                    Button("Lock") {
-                        padService.lock()
-                    }
-                    Divider()
-                    Button("Sign Out") {
-                        try? authService.logout()
-                    }
-                } label: {
-                    Image(systemName: "person.crop.circle")
-                }
-            }
-        }
     }
 
     @ViewBuilder
     private func featureView(for feature: Feature) -> some View {
         switch feature {
         case .pad:
-            PadDetailView(padService: padService)
+            PadDetailView(authService: authService, padService: padService)
         }
     }
 }
@@ -119,12 +83,43 @@ struct MainWindowView: View {
 // MARK: - Pad Detail View
 
 private struct PadDetailView: View {
+    @Bindable var authService: AuthService
     @Bindable var padService: PadService
 
     var body: some View {
         PadListView(padService: padService)
             .navigationTitle("Pad")
             .navigationSubtitle("\(padService.items.count) items")
+            .toolbar {
+                // Refresh button
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        Task {
+                            await padService.refresh()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .disabled(padService.isLoading)
+                    .help("Refresh (⌘R)")
+                }
+
+                // User menu
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button("Lock") {
+                            padService.lock()
+                        }
+                        Divider()
+                        Button("Sign Out") {
+                            try? authService.logout()
+                        }
+                    } label: {
+                        Image(systemName: "person.crop.circle")
+                    }
+                    .help("Account")
+                }
+            }
     }
 }
 
