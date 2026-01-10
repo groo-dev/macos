@@ -25,7 +25,6 @@ class AuthService {
     private(set) var isLoading = false
 
     private let keychain = KeychainService()
-    private let accountsSettingsURL = URL(string: "https://accounts.groo.dev/settings")!
 
     init() {
         checkExistingSession()
@@ -41,7 +40,7 @@ class AuthService {
 
     /// Open accounts settings page where user can create a PAT
     func openAccountSettings() {
-        NSWorkspace.shared.open(accountsSettingsURL)
+        NSWorkspace.shared.open(Config.accountsSettingsURL)
     }
 
     // MARK: - Login with PAT

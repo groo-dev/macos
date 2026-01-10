@@ -222,15 +222,21 @@ struct FileUploadResponse: Decodable {
 extension APIClient {
     enum Endpoint {
         static let state = "/v1/state"
-        static let devices = "/v1/devices"
         static let files = "/v1/files"
+        static let list = "/v1/list"
 
         static func file(_ key: String) -> String {
             "/v1/files/\(key)"
         }
 
-        static func device(_ token: String) -> String {
-            "/v1/devices/\(token)"
+        static func listItem(_ id: String) -> String {
+            "/v1/list/\(id)"
         }
     }
+}
+
+// MARK: - Additional Response Types
+
+struct AddItemResponse: Decodable {
+    let success: Bool
 }

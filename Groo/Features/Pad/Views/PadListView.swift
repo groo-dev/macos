@@ -17,13 +17,11 @@ struct PadListView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Quick add field
-            HStack(spacing: 8) {
+            HStack(spacing: Theme.Spacing.sm) {
                 TextField("Add text or drop files...", text: $newItemText)
                     .textFieldStyle(.plain)
                     .font(.body)
-                    .onSubmit {
-                        addItem()
-                    }
+                    .onSubmit { addItem() }
 
                 if !newItemText.isEmpty {
                     Button(action: addItem) {
@@ -33,9 +31,18 @@ struct PadListView: View {
                     .buttonStyle(.borderless)
                     .foregroundStyle(Color.accentColor)
                 }
+
+                // Refresh button
+                LoadingIconButton(
+                    icon: "arrow.clockwise",
+                    isLoading: padService.isLoading,
+                    action: { Task { await padService.refresh() } },
+                    help: "Refresh (⌘R)"
+                )
+                .keyboardShortcut("r", modifiers: .command)
             }
-            .padding(12)
-            .background(Color.primary.opacity(0.03))
+            .padding(Theme.Spacing.md)
+            .background(Theme.Colors.surfaceSubtle)
 
             Divider()
 
@@ -46,19 +53,11 @@ struct PadListView: View {
                     .scaleEffect(0.8)
                 Spacer()
             } else if padService.items.isEmpty {
-                Spacer()
-                VStack(spacing: 8) {
-                    Image(systemName: "tray")
-                        .font(.largeTitle)
-                        .foregroundStyle(.tertiary)
-                    Text("No items yet")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    Text("Add text or drop files above")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer()
+                EmptyState(
+                    icon: "tray",
+                    title: "No items yet",
+                    subtitle: "Add text or drop files above"
+                )
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -75,12 +74,11 @@ struct PadListView: View {
                             )
 
                             if item.id != padService.items.last?.id {
-                                Divider()
-                                    .padding(.horizontal, 12)
+                                ListDivider()
                             }
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, Theme.Spacing.xs)
                 }
                 .refreshable {
                     await padService.refresh()
@@ -125,11 +123,6 @@ struct PadListView: View {
 // MARK: - Preview
 
 #Preview {
-    // Create a mock service for preview
-    let mockService = PadService(
-        api: APIClient(baseURL: URL(string: "https://pad.groo.dev")!)
-    )
-
-    return PadListView(padService: mockService)
+    PadListView(padService: PadService(api: APIClient(baseURL: Config.padAPIBaseURL)))
         .frame(width: 350, height: 500)
 }

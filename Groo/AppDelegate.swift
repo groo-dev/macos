@@ -52,8 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Services Setup
 
     private func setupServices() {
-        let baseURL = URL(string: "https://pad.groo.dev")!
-        apiClient = APIClient(baseURL: baseURL)
+        apiClient = APIClient(baseURL: Config.padAPIBaseURL)
         authService = AuthService()
         padService = PadService(api: apiClient)
         pushService = PushService()
@@ -82,7 +81,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Create popover
         popover = NSPopover()
-        popover?.contentSize = NSSize(width: 300, height: 400)
+        popover?.contentSize = NSSize(width: Theme.Size.popoverWidth, height: Theme.Size.popoverHeight)
         popover?.behavior = .transient
         popover?.animates = true
 
@@ -106,6 +105,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
+
+            // Auto-refresh when popover opens (if unlocked)
+            if padService.isUnlocked {
+                Task { @MainActor in
+                    await padService.refresh()
+                }
+            }
         }
     }
 
@@ -123,7 +129,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
 
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                contentRect: NSRect(
+                    x: 0, y: 0,
+                    width: Theme.Size.mainWindowWidth,
+                    height: Theme.Size.mainWindowHeight
+                ),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false
@@ -132,7 +142,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.contentViewController = NSHostingController(rootView: contentView)
             window.center()
             window.setFrameAutosaveName("MainWindow")
-            window.minSize = NSSize(width: 600, height: 400)
+            window.minSize = NSSize(
+                width: Theme.Size.mainWindowMinWidth,
+                height: Theme.Size.mainWindowMinHeight
+            )
 
             mainWindow = window
         }
@@ -158,7 +171,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func application(_ application: NSApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Task {
-            try? await pushService.registerDeviceToken(deviceToken, api: apiClient)
+            try? await pushService.registerDeviceToken(deviceToken)
         }
     }
 

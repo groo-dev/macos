@@ -15,17 +15,17 @@ struct PadItemRow: View {
     @State private var isHovering = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: Theme.Spacing.md) {
             // Text content
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 Text(item.text)
                     .font(.body)
-                    .lineLimit(3)
+                    .lineLimit(Theme.LineLimit.itemPreview)
                     .foregroundStyle(.primary)
 
                 // File attachments indicator
                 if !item.files.isEmpty {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Theme.Spacing.xs) {
                         Image(systemName: "paperclip")
                             .font(.caption)
                         Text("\(item.files.count) file\(item.files.count == 1 ? "" : "s")")
@@ -43,34 +43,35 @@ struct PadItemRow: View {
             Spacer()
 
             // Action buttons (visible on hover)
-            if isHovering {
-                HStack(spacing: 8) {
-                    Button(action: onCopy) {
-                        Image(systemName: "doc.on.doc")
-                            .font(.body)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Copy to clipboard")
+            HStack(spacing: Theme.Spacing.xs) {
+                IconButton(
+                    icon: "doc.on.doc",
+                    action: onCopy,
+                    size: .small,
+                    help: "Copy to clipboard"
+                )
 
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.body)
-                    }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.red)
-                    .help("Delete")
-                }
+                IconButton(
+                    icon: "trash",
+                    action: onDelete,
+                    size: .small,
+                    isDestructive: true,
+                    help: "Delete"
+                )
             }
+            .opacity(isHovering ? 1 : 0)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(isHovering ? Color.primary.opacity(0.05) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .rowPadding()
+        .hoverEffect(isHovering)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md))
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(Theme.Animation.fastSpring) {
                 isHovering = hovering
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(item.text). \(item.files.count) files attached.")
+        .accessibilityHint("Double-tap to copy")
     }
 }
 
@@ -89,7 +90,7 @@ struct PadItemRow: View {
             onDelete: {}
         )
 
-        Divider()
+        ListDivider()
 
         PadItemRow(
             item: DecryptedListItem(

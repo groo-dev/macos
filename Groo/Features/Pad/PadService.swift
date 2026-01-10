@@ -202,14 +202,16 @@ class PadService {
 
         let encryptedText = try crypto.encrypt(text, using: key)
         let item = PadListItem(
-            id: UUID().uuidString.prefix(8).lowercased(),
+            id: String(UUID().uuidString.prefix(8).lowercased()),
             encryptedText: encryptedText.toPadEncryptedPayload(),
             files: [],
             createdAt: Int(Date().timeIntervalSince1970 * 1000)
         )
 
-        // Note: In full implementation, this would be sent via WebSocket
-        // For now, we optimistically add to local state
+        // Send to API
+        let _: AddItemResponse = try await api.post(APIClient.Endpoint.list, body: item)
+
+        // Add to local state on success
         let decryptedItem = DecryptedListItem(
             id: item.id,
             text: text,
@@ -217,18 +219,17 @@ class PadService {
             createdAt: item.createdAt
         )
         items.insert(decryptedItem, at: 0)
-
-        // TODO: Send via WebSocket or REST API
     }
 
     // MARK: - Delete Item
 
     /// Delete an item from the list
     func deleteItem(id: String) async throws {
-        // Optimistically remove from local state
-        items.removeAll { $0.id == id }
+        // Delete via API
+        try await api.delete(APIClient.Endpoint.listItem(id))
 
-        // TODO: Send via WebSocket or REST API
+        // Remove from local state on success (reassign to trigger observation)
+        items = items.filter { $0.id != id }
     }
 
     // MARK: - File Operations

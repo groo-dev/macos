@@ -12,8 +12,6 @@ struct PadMenuView: View {
 
     @State private var newItemText = ""
 
-    private let maxItems = 10
-
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -21,65 +19,56 @@ struct PadMenuView: View {
                 Label("Pad", systemImage: "list.clipboard")
                     .font(.headline)
                 Spacer()
-                if padService.isLoading {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                }
+                LoadingIconButton(
+                    icon: "arrow.clockwise",
+                    isLoading: padService.isLoading,
+                    action: { Task { await padService.refresh() } },
+                    size: .small,
+                    help: "Refresh"
+                )
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.sm)
 
             Divider()
 
             // Quick add
-            HStack(spacing: 8) {
+            HStack(spacing: Theme.Spacing.sm) {
                 TextField("Add text...", text: $newItemText)
                     .textFieldStyle(.plain)
                     .font(.callout)
-                    .onSubmit {
-                        addItem()
-                    }
+                    .onSubmit { addItem() }
 
                 if !newItemText.isEmpty {
-                    Button(action: addItem) {
-                        Image(systemName: "plus.circle.fill")
-                    }
-                    .buttonStyle(.borderless)
+                    IconButton(icon: "plus.circle.fill", action: addItem, size: .small)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.sm)
 
             Divider()
 
             // Recent items
             if padService.items.isEmpty {
-                VStack(spacing: 4) {
-                    Text("No items")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
+                CompactEmptyState(text: "No items")
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(padService.items.prefix(maxItems)) { item in
+                        ForEach(padService.items.prefix(Theme.Size.maxMenuItems)) { item in
                             MenuItemRow(item: item) {
                                 padService.copyToClipboard(item.text)
                             }
 
-                            if item.id != padService.items.prefix(maxItems).last?.id {
-                                Divider()
-                                    .padding(.horizontal, 8)
+                            if item.id != padService.items.prefix(Theme.Size.maxMenuItems).last?.id {
+                                ListDivider()
                             }
                         }
                     }
                 }
-                .frame(maxHeight: 300)
+                .frame(maxHeight: Theme.Size.menuItemMaxHeight)
             }
         }
-        .frame(width: 280)
+        .frame(width: Theme.Size.menuContentWidth)
     }
 
     private func addItem() {
@@ -104,14 +93,14 @@ private struct MenuItemRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(item.text)
                         .font(.callout)
-                        .lineLimit(2)
+                        .lineLimit(Theme.LineLimit.menuItemPreview)
                         .foregroundStyle(.primary)
 
                     if !item.files.isEmpty {
-                        HStack(spacing: 2) {
+                        HStack(spacing: Theme.Spacing.xxs) {
                             Image(systemName: "paperclip")
                                 .font(.caption2)
                             Text("\(item.files.count)")
@@ -128,22 +117,19 @@ private struct MenuItemRow: View {
                     .foregroundStyle(.secondary)
                     .opacity(isHovering ? 1 : 0)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(isHovering ? Color.primary.opacity(0.08) : Color.clear)
+            .rowPadding()
+            .hoverEffect(isHovering)
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
+        .animation(Theme.Animation.fastSpring, value: isHovering)
+        .accessibilityLabel("Copy: \(item.text)")
     }
 }
 
 // MARK: - Preview
 
 #Preview {
-    let mockService = PadService(
-        api: APIClient(baseURL: URL(string: "https://pad.groo.dev")!)
-    )
-
-    return PadMenuView(padService: mockService)
+    PadMenuView(padService: PadService(api: APIClient(baseURL: Config.padAPIBaseURL)))
         .padding()
 }

@@ -3,6 +3,7 @@
 //  Groo
 //
 //  APNs registration and push notification handling.
+//  Device tokens are registered with accounts API.
 //
 
 import AppKit
@@ -14,6 +15,7 @@ import UserNotifications
 enum PushError: Error {
     case registrationFailed
     case notAuthorized
+    case noAuthToken
     case apiError(Error)
 }
 
@@ -61,12 +63,17 @@ class PushService {
 
     // MARK: - Token Registration
 
-    func registerDeviceToken(_ tokenData: Data, api: APIClient) async throws {
+    func registerDeviceToken(_ tokenData: Data) async throws {
         let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
 
         // Cache the token
         try keychain.save(tokenString, for: KeychainService.Key.deviceToken)
         deviceToken = tokenString
+
+        // Get PAT for auth
+        guard let patToken = try? keychain.loadString(for: KeychainService.Key.patToken) else {
+            throw PushError.noAuthToken
+        }
 
         // Determine environment
         #if DEBUG
@@ -75,26 +82,51 @@ class PushService {
         let environment = "production"
         #endif
 
-        // Register with server
+        // Register with accounts API
         let registration = DeviceRegistration(
             token: tokenString,
             platform: "macos",
             environment: environment
         )
 
-        do {
-            let _: [String: Bool] = try await api.post(APIClient.Endpoint.devices, body: registration)
-            isRegistered = true
-        } catch {
-            throw PushError.apiError(error)
+        let url = Config.accountsAPIBaseURL.appendingPathComponent("v1/devices")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(patToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONEncoder().encode(registration)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("[PushService] Registration failed: \(errorMessage)")
+            throw PushError.registrationFailed
         }
+
+        isRegistered = true
+        print("[PushService] Device registered successfully")
     }
 
-    func unregisterDeviceToken(api: APIClient) async throws {
+    func unregisterDeviceToken() async throws {
         guard let token = deviceToken else { return }
 
+        guard let patToken = try? keychain.loadString(for: KeychainService.Key.patToken) else {
+            // Just clear local state if no auth
+            try? keychain.delete(for: KeychainService.Key.deviceToken)
+            deviceToken = nil
+            isRegistered = false
+            return
+        }
+
+        let url = Config.accountsAPIBaseURL.appendingPathComponent("v1/devices/\(token)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(patToken)", forHTTPHeaderField: "Authorization")
+
         do {
-            try await api.delete(APIClient.Endpoint.device(token))
+            let _ = try await URLSession.shared.data(for: request)
         } catch {
             // Ignore errors during unregistration
         }
