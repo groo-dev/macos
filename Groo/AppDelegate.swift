@@ -52,8 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Services Setup
 
     private func setupServices() {
-        // TODO: Switch to production URLs before release
-        let baseURL = URL(string: "http://localhost:13648")!  // Local: http://localhost:13648, Prod: https://pad.groo.dev
+        let baseURL = URL(string: "https://pad.groo.dev")!
         apiClient = APIClient(baseURL: baseURL)
         authService = AuthService()
         padService = PadService(api: apiClient)

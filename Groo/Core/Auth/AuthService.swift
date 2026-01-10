@@ -25,8 +25,7 @@ class AuthService {
     private(set) var isLoading = false
 
     private let keychain = KeychainService()
-    // TODO: Switch to production URL before release
-    private let accountsSettingsURL = URL(string: "http://localhost:37586/settings")!  // Local: http://localhost:37586, Prod: https://accounts.groo.dev
+    private let accountsSettingsURL = URL(string: "https://accounts.groo.dev/settings")!
 
     init() {
         checkExistingSession()
