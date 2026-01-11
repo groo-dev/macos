@@ -73,11 +73,7 @@ jobs:
             -project Groo.xcodeproj \
             -scheme Groo \
             -configuration Release \
-            -archivePath $RUNNER_TEMP/Groo.xcarchive \
-            -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }}
+            -archivePath $RUNNER_TEMP/Groo.xcarchive
 
       - name: Export app
         run: |
