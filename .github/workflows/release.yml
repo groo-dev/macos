@@ -47,8 +47,8 @@ jobs:
 
           # Install provisioning profiles
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$PROFILE_APP" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/app.provisioningprofile
-          echo "$PROFILE_EXTENSION" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/extension.provisioningprofile
+          echo "$PROFILE_APP" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/app.mobileprovision
+          echo "$PROFILE_EXTENSION" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/extension.mobileprovision
 
       - name: Set version
         run: |
