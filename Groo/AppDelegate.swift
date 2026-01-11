@@ -102,6 +102,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @MainActor
     private func processSharedItems(_ items: [ShareExtensionItem], in shareDir: URL) async {
         guard padService.isUnlocked else {
             // Show popover for authentication
@@ -149,6 +150,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Services Setup
 
+    @MainActor
     private func setupServices() {
         apiClient = APIClient(baseURL: Config.padAPIBaseURL)
         authService = AuthService()
@@ -197,7 +199,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover?.contentViewController = NSHostingController(rootView: menuBarView)
     }
 
-    @objc private func togglePopover() {
+    @MainActor @objc private func togglePopover() {
         guard let button = statusItem?.button, let popover = popover else { return }
 
         if popover.isShown {
@@ -315,6 +317,7 @@ extension AppDelegate: NSDraggingDestination {
         return false
     }
 
+    @MainActor
     private func handleDroppedFile(_ url: URL) {
         guard padService.isUnlocked else {
             // Show main window for authentication
@@ -336,6 +339,7 @@ extension AppDelegate: NSDraggingDestination {
         }
     }
 
+    @MainActor
     private func handleDroppedText(_ text: String) {
         guard padService.isUnlocked else {
             showMainWindow()
