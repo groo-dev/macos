@@ -17,7 +17,7 @@ enum KeychainError: Error {
 }
 
 struct KeychainService {
-    private let service = "dev.groo.mac"
+    private let service = Config.keychainService
 
     // MARK: - String Storage
 

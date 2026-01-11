@@ -106,14 +106,26 @@ struct PadListView: View {
     // MARK: - Add Text Area
 
     private var addTextArea: some View {
-        CustomTextEditor(
-            text: $newItemText,
-            placeholder: "Add something...",
-            height: $textEditorHeight,
-            onSubmit: addItem
-        )
-        .focused($isTextFieldFocused)
-        .frame(height: min(textEditorHeight, 80))
+        HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
+            CustomTextEditor(
+                text: $newItemText,
+                placeholder: "Add something...",
+                height: $textEditorHeight,
+                onSubmit: addItem
+            )
+            .focused($isTextFieldFocused)
+            .frame(height: min(textEditorHeight, 80))
+
+            Button {
+                pasteAndSubmit()
+            } label: {
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("Paste & add")
+        }
         .padding(Theme.Spacing.md)
         .background(Theme.Colors.surfaceSubtle)
     }
@@ -272,17 +284,6 @@ struct PadListView: View {
 
     private var footerView: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            // Paste and submit button
-            Button {
-                pasteAndSubmit()
-            } label: {
-                Image(systemName: "doc.on.clipboard")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .help("Paste & submit")
-
             // Refresh button
             Button {
                 Task { await padService.refresh() }

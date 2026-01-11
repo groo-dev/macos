@@ -25,7 +25,7 @@ struct MenuBarView: View {
             if !authService.isAuthenticated {
                 LoginPromptView(authService: authService)
             } else if !padService.isUnlocked {
-                PasswordPromptView(padService: padService)
+                PasswordPromptView(authService: authService, padService: padService)
             } else {
                 contentView
             }
@@ -130,14 +130,26 @@ struct MenuBarView: View {
     @State private var textEditorHeight: CGFloat = 22
 
     private var addTextArea: some View {
-        CustomTextEditor(
-            text: $newItemText,
-            placeholder: "Add something...",
-            height: $textEditorHeight,
-            onSubmit: addItem
-        )
-        .focused($isTextFieldFocused)
-        .frame(height: min(textEditorHeight, 80)) // Max 4 lines roughly
+        HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
+            CustomTextEditor(
+                text: $newItemText,
+                placeholder: "Add something...",
+                height: $textEditorHeight,
+                onSubmit: addItem
+            )
+            .focused($isTextFieldFocused)
+            .frame(height: min(textEditorHeight, 80)) // Max 4 lines roughly
+
+            Button {
+                pasteAndSubmit()
+            } label: {
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("Paste & add")
+        }
         .padding(Theme.Spacing.md)
     }
 
@@ -291,17 +303,6 @@ struct MenuBarView: View {
 
     private var footerView: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            // Paste and submit button
-            Button {
-                pasteAndSubmit()
-            } label: {
-                Image(systemName: "doc.on.clipboard")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .help("Paste & submit")
-
             // Refresh button
             Button {
                 Task { await padService.refresh() }
@@ -736,6 +737,7 @@ private struct LoginPromptView: View {
 // MARK: - Password Prompt
 
 private struct PasswordPromptView: View {
+    @Bindable var authService: AuthService
     @Bindable var padService: PadService
 
     @State private var password = ""
@@ -744,44 +746,69 @@ private struct PasswordPromptView: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        VStack(spacing: Theme.Spacing.lg) {
-            Spacer()
+        VStack(spacing: 0) {
+            VStack(spacing: Theme.Spacing.lg) {
+                Spacer()
 
-            Image(systemName: "lock")
-                .font(.system(size: 36))
-                .foregroundStyle(.tertiary)
+                Image(systemName: "lock")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.tertiary)
 
-            Text("Enter Password")
-                .font(.headline)
+                Text("Enter Password")
+                    .font(.headline)
 
-            SecureField("Password", text: $password)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
-                .focused($isFocused)
-                .onSubmit { unlock() }
+                SecureField("Password", text: $password)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 200)
+                    .focused($isFocused)
+                    .onSubmit { unlock() }
 
-            if showError {
-                Text("Incorrect password")
-                    .font(.caption)
-                    .foregroundStyle(Theme.Colors.error)
-            }
-
-            Button {
-                unlock()
-            } label: {
-                if isUnlocking {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                } else {
-                    Text("Unlock")
+                if showError {
+                    Text("Incorrect password")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.error)
                 }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(password.isEmpty || isUnlocking)
 
-            Spacer()
+                Button {
+                    unlock()
+                } label: {
+                    if isUnlocking {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    } else {
+                        Text("Unlock")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(password.isEmpty || isUnlocking)
+
+                Spacer()
+            }
+            .padding(Theme.Spacing.lg)
+
+            Divider()
+
+            // Footer with actions
+            HStack(spacing: Theme.Spacing.sm) {
+                Button("Sign Out") {
+                    try? authService.logout()
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button("Quit") {
+                    NSApp.terminate(nil)
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.sm)
         }
-        .padding(Theme.Spacing.lg)
         .onAppear { isFocused = true }
     }
 

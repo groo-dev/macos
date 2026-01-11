@@ -9,6 +9,26 @@ import Cocoa
 import SwiftUI
 import UniformTypeIdentifiers
 
+// MARK: - Extension Configuration
+
+private enum ExtensionConfig {
+    static var appGroupIdentifier: String {
+        #if DEBUG
+        "group.dev.groo.mac.debug"
+        #else
+        "group.dev.groo.mac"
+        #endif
+    }
+
+    static var urlScheme: String {
+        #if DEBUG
+        "groo-dev"
+        #else
+        "groo"
+        #endif
+    }
+}
+
 class ShareViewController: NSViewController {
 
     private var sharedItems: [SharedItem] = []
@@ -129,7 +149,7 @@ class ShareViewController: NSViewController {
     private func saveAndOpenApp() async throws {
         // Get shared container URL
         guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.dev.groo.mac"
+            forSecurityApplicationGroupIdentifier: ExtensionConfig.appGroupIdentifier
         ) else {
             throw ShareError.noSharedContainer
         }
@@ -164,7 +184,7 @@ class ShareViewController: NSViewController {
         try data.write(to: dataURL)
 
         // Open main app via URL scheme
-        let grooURL = URL(string: "groo://share")!
+        let grooURL = URL(string: "\(ExtensionConfig.urlScheme)://share")!
         NSWorkspace.shared.open(grooURL)
     }
 

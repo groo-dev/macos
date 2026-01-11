@@ -58,7 +58,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleURL(_ url: URL) {
-        guard url.scheme == "groo" else { return }
+        guard url.scheme == Config.urlScheme else { return }
 
         switch url.host {
         case "share":
@@ -71,7 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleShareExtensionContent() {
         // Get shared container URL
         guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.dev.groo.mac"
+            forSecurityApplicationGroupIdentifier: Config.appGroupIdentifier
         ) else {
             print("Could not access shared container")
             return
@@ -185,7 +185,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover = NSPopover()
         popover?.contentSize = NSSize(width: Theme.Size.popoverWidth, height: Theme.Size.popoverHeight)
         popover?.behavior = .transient
-        popover?.animates = true
+        popover?.animates = false
 
         // Set popover content
         let menuBarView = MenuBarView(

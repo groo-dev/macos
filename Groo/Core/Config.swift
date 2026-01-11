@@ -4,27 +4,48 @@
 //
 //  Centralized configuration for URLs and settings.
 //  Debug builds use local servers, Release uses production.
+//  API URLs can be overridden via UserDefaults for debugging.
 //
 
 import Foundation
 
 enum Config {
-    // MARK: - URLs
+    // MARK: - App Group (for share extension communication)
 
-    static var padAPIBaseURL: URL {
+    static var appGroupIdentifier: String {
         #if DEBUG
-        // Local development - update ports as needed
-        URL(string: "http://localhost:13648")!
+        "group.dev.groo.mac.debug"
         #else
-        URL(string: "https://pad.groo.dev")!
+        "group.dev.groo.mac"
         #endif
     }
 
-    static var accountsAPIBaseURL: URL {
+    // MARK: - URLs
+
+    /// Pad API base URL. Can be overridden via UserDefaults "padAPIBaseURL".
+    static var padAPIBaseURL: URL {
+        if let override = UserDefaults.standard.string(forKey: "padAPIBaseURL"),
+           let url = URL(string: override) {
+            return url
+        }
         #if DEBUG
-        URL(string: "http://localhost:37586")!
+        // Local development - update ports as needed
+        return URL(string: "http://localhost:13648")!
         #else
-        URL(string: "https://accounts.groo.dev")!
+        return URL(string: "https://pad.groo.dev")!
+        #endif
+    }
+
+    /// Accounts API base URL. Can be overridden via UserDefaults "accountsAPIBaseURL".
+    static var accountsAPIBaseURL: URL {
+        if let override = UserDefaults.standard.string(forKey: "accountsAPIBaseURL"),
+           let url = URL(string: override) {
+            return url
+        }
+        #if DEBUG
+        return URL(string: "http://localhost:37586")!
+        #else
+        return URL(string: "https://accounts.groo.dev")!
         #endif
     }
 
@@ -38,5 +59,25 @@ enum Config {
 
     static var accountsSettingsURL: URL {
         accountsWebURL.appendingPathComponent("settings")
+    }
+
+    // MARK: - URL Scheme
+
+    static var urlScheme: String {
+        #if DEBUG
+        "groo-dev"
+        #else
+        "groo"
+        #endif
+    }
+
+    // MARK: - Keychain
+
+    static var keychainService: String {
+        #if DEBUG
+        "dev.groo.mac.debug"
+        #else
+        "dev.groo.mac"
+        #endif
     }
 }
