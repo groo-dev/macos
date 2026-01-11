@@ -47,8 +47,19 @@ jobs:
 
           # Install provisioning profiles
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$PROFILE_APP" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/app.mobileprovision
-          echo "$PROFILE_EXTENSION" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/extension.mobileprovision
+
+          echo "$PROFILE_APP" | base64 --decode > /tmp/app.mobileprovision
+          echo "$PROFILE_EXTENSION" | base64 --decode > /tmp/extension.mobileprovision
+
+          # Extract UUIDs and install with UUID as filename
+          APP_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(/usr/bin/security cms -D -i /tmp/app.mobileprovision))
+          EXT_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(/usr/bin/security cms -D -i /tmp/extension.mobileprovision))
+
+          cp /tmp/app.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$APP_UUID.mobileprovision
+          cp /tmp/extension.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$EXT_UUID.mobileprovision
+
+          echo "APP_PROFILE_UUID=$APP_UUID" >> $GITHUB_ENV
+          echo "EXT_PROFILE_UUID=$EXT_UUID" >> $GITHUB_ENV
 
       - name: Set version
         run: |
@@ -63,6 +74,7 @@ jobs:
             -scheme Groo \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Groo.xcarchive \
+            -allowProvisioningUpdates \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }}
