@@ -71,7 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleShareExtensionContent() {
         // Get shared container URL
         guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.dev.groo.app"
+            forSecurityApplicationGroupIdentifier: "group.dev.groo.mac"
         ) else {
             print("Could not access shared container")
             return
@@ -169,7 +169,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "square.stack.3d.up.fill", accessibilityDescription: "Groo")
+            let icon = NSImage(named: "MenuBarIcon")
+            icon?.isTemplate = true
+            button.image = icon
             button.action = #selector(togglePopover)
             button.target = self
 

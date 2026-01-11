@@ -129,7 +129,7 @@ class ShareViewController: NSViewController {
     private func saveAndOpenApp() async throws {
         // Get shared container URL
         guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.dev.groo.app"
+            forSecurityApplicationGroupIdentifier: "group.dev.groo.mac"
         ) else {
             throw ShareError.noSharedContainer
         }

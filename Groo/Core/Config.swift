@@ -30,7 +30,7 @@ enum Config {
 
     static var accountsWebURL: URL {
         #if DEBUG
-        URL(string: "http://localhost:3001")!
+        URL(string: "http://localhost:37586")!
         #else
         URL(string: "https://accounts.groo.dev")!
         #endif
