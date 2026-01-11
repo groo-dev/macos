@@ -248,6 +248,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 width: Theme.Size.mainWindowMinWidth,
                 height: Theme.Size.mainWindowMinHeight
             )
+            window.isReleasedWhenClosed = false
+            window.delegate = self
 
             mainWindow = window
         }
@@ -343,6 +345,14 @@ extension AppDelegate: NSDraggingDestination {
         Task {
             try? await padService.addItem(text: text)
         }
+    }
+}
+
+// MARK: - Window Delegate
+
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        // Window will be reused, no cleanup needed
     }
 }
 
