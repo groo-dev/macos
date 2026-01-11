@@ -24,11 +24,14 @@ jobs:
           bump: patch
           artifacts: Groo-*.dmg
 
-      - name: Import certificate
+      - name: Import certificate and profiles
         env:
           CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          PROFILE_APP: ${{ secrets.PROVISIONING_PROFILE_APP }}
+          PROFILE_EXTENSION: ${{ secrets.PROVISIONING_PROFILE_EXTENSION }}
         run: |
+          # Create keychain
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
 
@@ -36,10 +39,16 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
+          # Import certificate
           echo "$CERTIFICATE_BASE64" | base64 --decode > $RUNNER_TEMP/certificate.p12
           security import $RUNNER_TEMP/certificate.p12 -P "$CERTIFICATE_PASSWORD" \
             -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Install provisioning profiles
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE_APP" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/app.provisioningprofile
+          echo "$PROFILE_EXTENSION" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/extension.provisioningprofile
 
       - name: Set version
         run: |
