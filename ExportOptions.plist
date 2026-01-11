@@ -6,5 +6,12 @@
 	<string>developer-id</string>
 	<key>teamID</key>
 	<string>5ZTZD96Q8H</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>dev.groo.mac</key>
+		<string>groo macos app</string>
+		<key>dev.groo.mac.ShareExtension</key>
+		<string>groo macos app (ShareExtension)</string>
+	</dict>
 </dict>
 </plist>
