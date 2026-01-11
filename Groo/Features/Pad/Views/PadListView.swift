@@ -8,6 +8,32 @@
 import AppKit
 import SwiftUI
 
+// MARK: - Pending File Model
+
+private struct PendingFile: Identifiable {
+    let id = UUID()
+    let name: String
+    let data: Data
+    let mimeType: String
+    let isImage: Bool
+
+    var icon: String {
+        if isImage {
+            return "photo"
+        }
+        let ext = (name as NSString).pathExtension.lowercased()
+        switch ext {
+        case "pdf": return "doc.fill"
+        case "zip", "tar", "gz", "rar": return "doc.zipper"
+        case "mp3", "wav", "m4a": return "music.note"
+        case "mp4", "mov", "avi": return "film"
+        case "txt", "md": return "doc.text"
+        case "json", "xml", "html", "css", "js", "swift": return "doc.text.fill"
+        default: return "doc"
+        }
+    }
+}
+
 struct PadListView: View {
     @Bindable var padService: PadService
 
@@ -17,6 +43,7 @@ struct PadListView: View {
     @State private var showErrorToast = false
     @State private var errorMessage = ""
     @State private var textEditorHeight: CGFloat = 22
+    @State private var pendingFiles: [PendingFile] = []
     @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
@@ -106,44 +133,90 @@ struct PadListView: View {
     // MARK: - Add Text Area
 
     private var addTextArea: some View {
-        HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
-            CustomTextEditor(
-                text: $newItemText,
-                placeholder: "Add something...",
-                height: $textEditorHeight,
-                onSubmit: addItem
-            )
-            .focused($isTextFieldFocused)
-            .frame(height: min(textEditorHeight, 80))
+        VStack(spacing: 0) {
+            HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
+                CustomTextEditor(
+                    text: $newItemText,
+                    placeholder: "Add something...",
+                    height: $textEditorHeight,
+                    onSubmit: submitItem,
+                    onPasteFiles: { urls in
+                        addFilesToPending(urls)
+                    },
+                    onPasteImage: { data in
+                        addImageToPending(data)
+                    }
+                )
+                .focused($isTextFieldFocused)
+                .frame(height: min(textEditorHeight, 80))
 
-            Button {
-                pasteAndSubmit()
-            } label: {
-                Image(systemName: "doc.on.clipboard")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
+                Button {
+                    pasteAndSubmit()
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Paste & add")
             }
-            .buttonStyle(.borderless)
-            .help("Paste & add")
+            .padding(Theme.Spacing.md)
+
+            // Pending files preview
+            if !pendingFiles.isEmpty {
+                pendingFilesPreview
+            }
         }
-        .padding(Theme.Spacing.md)
         .background(Theme.Colors.surfaceSubtle)
+    }
+
+    private var pendingFilesPreview: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Theme.Spacing.sm) {
+                ForEach(pendingFiles) { file in
+                    HStack(spacing: Theme.Spacing.xs) {
+                        Image(systemName: file.icon)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+
+                        Text(file.name)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 80)
+
+                        Button {
+                            pendingFiles.removeAll { $0.id == file.id }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                    .padding(.horizontal, Theme.Spacing.sm)
+                    .padding(.vertical, Theme.Spacing.xs)
+                    .background(Theme.Colors.surfaceHover)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm))
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.bottom, Theme.Spacing.sm)
+        }
     }
 
     private func pasteAndSubmit() {
         let pasteboard = NSPasteboard.general
 
-        // Check for files first
+        // Check for files first - upload all as one item
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
-            for url in urls {
-                uploadFile(url)
-            }
+            uploadFilesAsOneItem(urls)
             return
         }
 
         // Check for images
         if let imageData = pasteboard.data(forType: .tiff) ?? pasteboard.data(forType: .png) {
-            uploadImageData(imageData)
+            uploadImageDataAsItem(imageData)
             return
         }
 
@@ -160,21 +233,27 @@ struct PadListView: View {
         }
     }
 
-    private func uploadFile(_ url: URL) {
+    /// Upload multiple files as a single item (for paste button)
+    private func uploadFilesAsOneItem(_ urls: [URL]) {
         Task {
             do {
-                let data = try Data(contentsOf: url)
-                let name = url.lastPathComponent
-                let type = url.pathExtension.isEmpty ? "application/octet-stream" : "application/\(url.pathExtension)"
-                let attachment = try await padService.uploadFile(name: name, type: type, data: data)
-                try await padService.addItemWithFiles(files: [attachment])
+                var attachments: [PadFileAttachment] = []
+                for url in urls {
+                    let data = try Data(contentsOf: url)
+                    let name = url.lastPathComponent
+                    let type = mimeType(for: url.pathExtension)
+                    let attachment = try await padService.uploadFile(name: name, type: type, data: data)
+                    attachments.append(attachment)
+                }
+                try await padService.addItemWithFiles(files: attachments)
             } catch {
-                showError("Failed to upload file")
+                showError("Failed to upload files")
             }
         }
     }
 
-    private func uploadImageData(_ data: Data) {
+    /// Upload image data as a single item (for paste button)
+    private func uploadImageDataAsItem(_ data: Data) {
         Task {
             do {
                 let name = "image-\(Date().timeIntervalSince1970).png"
@@ -186,19 +265,82 @@ struct PadListView: View {
         }
     }
 
-    private func addItem() {
-        let text = newItemText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+    /// Add file URLs to pending list (for textbox paste)
+    private func addFilesToPending(_ urls: [URL]) {
+        for url in urls {
+            if let data = try? Data(contentsOf: url) {
+                let name = url.lastPathComponent
+                let type = mimeType(for: url.pathExtension)
+                let isImage = type.hasPrefix("image/")
+                pendingFiles.append(PendingFile(name: name, data: data, mimeType: type, isImage: isImage))
+            }
+        }
+    }
 
+    /// Add image data to pending list (for textbox paste)
+    private func addImageToPending(_ data: Data) {
+        let name = "image-\(Date().timeIntervalSince1970).png"
+        pendingFiles.append(PendingFile(name: name, data: data, mimeType: "image/png", isImage: true))
+    }
+
+    private func mimeType(for ext: String) -> String {
+        let ext = ext.lowercased()
+        switch ext {
+        case "png": return "image/png"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "webp": return "image/webp"
+        case "pdf": return "application/pdf"
+        case "json": return "application/json"
+        case "txt": return "text/plain"
+        case "html": return "text/html"
+        case "css": return "text/css"
+        case "js": return "application/javascript"
+        case "zip": return "application/zip"
+        case "mp3": return "audio/mpeg"
+        case "mp4": return "video/mp4"
+        case "mov": return "video/quicktime"
+        default: return "application/octet-stream"
+        }
+    }
+
+    /// Submit item with text and/or pending files
+    private func submitItem() {
+        let text = newItemText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filesToUpload = pendingFiles
+
+        // Need either text or files
+        guard !text.isEmpty || !filesToUpload.isEmpty else { return }
+
+        // Clear UI immediately
         let textToAdd = text
         newItemText = ""
         textEditorHeight = 22
+        pendingFiles = []
 
         Task {
             do {
-                try await padService.addItem(text: textToAdd)
+                if filesToUpload.isEmpty {
+                    // Text only
+                    try await padService.addItem(text: textToAdd)
+                } else {
+                    // Upload files first
+                    var attachments: [PadFileAttachment] = []
+                    for file in filesToUpload {
+                        let attachment = try await padService.uploadFile(
+                            name: file.name,
+                            type: file.mimeType,
+                            data: file.data
+                        )
+                        attachments.append(attachment)
+                    }
+                    // Create item with files and optional text
+                    try await padService.addItemWithFiles(text: textToAdd, files: attachments)
+                }
             } catch {
+                // Restore on failure
                 newItemText = textToAdd
+                pendingFiles = filesToUpload
                 showError("Failed to add item")
             }
         }
@@ -521,15 +663,47 @@ private struct FileIcon: View {
 
 // MARK: - Custom Text Editor (Enter to submit, Shift+Enter for newline)
 
+// MARK: - Custom NSTextView with paste handling
+
+private class PasteHandlingTextView: NSTextView {
+    var onPasteFiles: (([URL]) -> Void)?
+    var onPasteImage: ((Data) -> Void)?
+
+    override func paste(_ sender: Any?) {
+        let pasteboard = NSPasteboard.general
+
+        // Check for file URLs first
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
+            onPasteFiles?(urls)
+            return
+        }
+
+        // Check for image data
+        if let imageData = pasteboard.data(forType: .tiff) ?? pasteboard.data(forType: .png) {
+            onPasteImage?(imageData)
+            return
+        }
+
+        // Fall back to default text paste
+        super.paste(sender)
+    }
+}
+
 private struct CustomTextEditor: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
     @Binding var height: CGFloat
     var onSubmit: () -> Void
+    var onPasteFiles: (([URL]) -> Void)?
+    var onPasteImage: ((Data) -> Void)?
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        let textView = scrollView.documentView as! NSTextView
+        let textView = PasteHandlingTextView()
+        textView.onPasteFiles = onPasteFiles
+        textView.onPasteImage = onPasteImage
+
+        let scrollView = NSScrollView()
+        scrollView.documentView = textView
 
         textView.delegate = context.coordinator
         textView.font = .systemFont(ofSize: 13)
@@ -542,6 +716,7 @@ private struct CustomTextEditor: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
+        textView.autoresizingMask = [.width]
 
         scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
@@ -566,13 +741,15 @@ private struct CustomTextEditor: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        let textView = scrollView.documentView as! NSTextView
+        guard let textView = scrollView.documentView as? PasteHandlingTextView else { return }
         if textView.string != text {
             textView.string = text
             context.coordinator.updateHeight(textView)
         }
         context.coordinator.onSubmit = onSubmit
         context.coordinator.height = $height
+        textView.onPasteFiles = onPasteFiles
+        textView.onPasteImage = onPasteImage
     }
 
     func makeCoordinator() -> Coordinator {
