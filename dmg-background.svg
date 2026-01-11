@@ -1,0 +1,36 @@
+<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="600" height="400" fill="url(#bg)"/>
+
+  <!-- Subtle grid pattern -->
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.05"/>
+  </pattern>
+  <rect width="600" height="400" fill="url(#grid)"/>
+
+  <!-- Label highlight under "Groo" (shorter) -->
+  <rect x="120" y="259" width="60" height="18" rx="4" fill="#ffffff" opacity="0.45"/>
+
+  <!-- Label highlight under "Applications" (wider) -->
+  <rect x="395" y="259" width="110" height="18" rx="4" fill="#ffffff" opacity="0.45"/>
+
+  <!-- Arrow pointing from app to Applications -->
+  <path d="M 230 200 L 370 200" stroke="#8B5CF6" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+  <path d="M 355 185 L 380 200 L 355 215" fill="none" stroke="#8B5CF6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+
+  <!-- "Drag to install" text -->
+  <text x="300" y="340" text-anchor="middle" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" opacity="0.6">Drag to Applications to install</text>
+
+  <!-- Groo wordmark at top -->
+  <text x="300" y="55" text-anchor="middle" fill="#8B5CF6" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="32" font-weight="600">Groo</text>
+
+  <!-- Tagline -->
+  <text x="300" y="80" text-anchor="middle" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" opacity="0.4">Your digital workspace</text>
+</svg>
