@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        uses: groo-dev/record-release@v1
+        with:
+          token: ${{ secrets.OPS_API_TOKEN }}
+          environment: production
+          bump: patch
+          artifacts: Groo-*.dmg
+
+      - name: Import certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          echo "$CERTIFICATE_BASE64" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 -P "$CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Set version
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          agvtool new-marketing-version $VERSION
+          agvtool new-version -all ${{ github.run_number }}
+
+      - name: Build and archive
+        run: |
+          xcodebuild archive \
+            -project Groo.xcodeproj \
+            -scheme Groo \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/Groo.xcarchive \
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Export app
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/Groo.xcarchive \
+            -exportPath $RUNNER_TEMP/export \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP_PATH="$RUNNER_TEMP/export/Groo.app"
+
+          ditto -c -k --keepParent "$APP_PATH" $RUNNER_TEMP/Groo.zip
+
+          xcrun notarytool submit $RUNNER_TEMP/Groo.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          xcrun stapler staple "$APP_PATH"
+
+      - name: Create DMG
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          APP_PATH="$RUNNER_TEMP/export/Groo.app"
+
+          mkdir -p $RUNNER_TEMP/dmg-staging
+          cp -R "$APP_PATH" $RUNNER_TEMP/dmg-staging/
+          ln -s /Applications $RUNNER_TEMP/dmg-staging/Applications
+
+          hdiutil create \
+            -volname "Groo" \
+            -srcfolder $RUNNER_TEMP/dmg-staging \
+            -ov \
+            -format UDZO \
+            "Groo-${VERSION}.dmg"
