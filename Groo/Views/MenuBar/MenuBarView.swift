@@ -17,6 +17,8 @@ struct MenuBarView: View {
     @State private var selectedIndex: Int? = nil
     @FocusState private var isTextFieldFocused: Bool
     @State private var showCopiedToast = false
+    @State private var showErrorToast = false
+    @State private var errorMessage = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -71,8 +73,30 @@ struct MenuBarView: View {
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+
+            // Error toast
+            if showErrorToast {
+                VStack {
+                    Spacer()
+                    HStack(spacing: Theme.Spacing.xs) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundStyle(.red)
+                        Text(errorMessage)
+                            .font(.callout)
+                            .fontWeight(.medium)
+                    }
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.vertical, Theme.Spacing.sm)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                    .padding(.bottom, 50)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .animation(.spring(duration: 0.3), value: showCopiedToast)
+        .animation(.spring(duration: 0.3), value: showErrorToast)
         .onKeyPress(.upArrow) { moveSelection(-1); return .handled }
         .onKeyPress(.downArrow) { moveSelection(1); return .handled }
         .onKeyPress(.return) {
@@ -128,10 +152,21 @@ struct MenuBarView: View {
             return
         }
 
+        // Check for images
+        if let imageData = pasteboard.data(forType: .tiff) ?? pasteboard.data(forType: .png) {
+            uploadImageData(imageData)
+            return
+        }
+
         // Check for text
         if let string = pasteboard.string(forType: .string), !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let text = string.trimmingCharacters(in: .whitespacesAndNewlines)
             Task {
-                try? await padService.addItem(text: string.trimmingCharacters(in: .whitespacesAndNewlines))
+                do {
+                    try await padService.addItem(text: text)
+                } catch {
+                    showError("Failed to add item")
+                }
             }
         }
     }
@@ -142,9 +177,22 @@ struct MenuBarView: View {
                 let data = try Data(contentsOf: url)
                 let name = url.lastPathComponent
                 let type = url.pathExtension.isEmpty ? "application/octet-stream" : "application/\(url.pathExtension)"
-                _ = try await padService.uploadFile(name: name, type: type, data: data)
+                let attachment = try await padService.uploadFile(name: name, type: type, data: data)
+                try await padService.addItemWithFiles(files: [attachment])
             } catch {
-                print("Failed to upload file: \(error)")
+                showError("Failed to upload file")
+            }
+        }
+    }
+
+    private func uploadImageData(_ data: Data) {
+        Task {
+            do {
+                let name = "image-\(Date().timeIntervalSince1970).png"
+                let attachment = try await padService.uploadFile(name: name, type: "image/png", data: data)
+                try await padService.addItemWithFiles(files: [attachment])
+            } catch {
+                showError("Failed to upload image")
             }
         }
     }
@@ -153,10 +201,25 @@ struct MenuBarView: View {
         let text = newItemText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
+        let textToAdd = text
+        newItemText = ""
+        textEditorHeight = 22
+
         Task {
-            try? await padService.addItem(text: text)
-            newItemText = ""
-            textEditorHeight = 22
+            do {
+                try await padService.addItem(text: textToAdd)
+            } catch {
+                newItemText = textToAdd
+                showError("Failed to add item")
+            }
+        }
+    }
+
+    private func showError(_ message: String) {
+        errorMessage = message
+        showErrorToast = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            showErrorToast = false
         }
     }
 

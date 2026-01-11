@@ -331,8 +331,8 @@ extension AppDelegate: NSDraggingDestination {
                 let name = url.lastPathComponent
                 let type = url.pathExtension.isEmpty ? "application/octet-stream" : "application/\(url.pathExtension)"
 
-                _ = try await padService.uploadFile(name: name, type: type, data: data)
-                // TODO: Add file to current item or create new item
+                let attachment = try await padService.uploadFile(name: name, type: type, data: data)
+                try await padService.addItemWithFiles(files: [attachment])
             } catch {
                 print("Failed to upload dropped file: \(error)")
             }
@@ -347,7 +347,11 @@ extension AppDelegate: NSDraggingDestination {
         }
 
         Task {
-            try? await padService.addItem(text: text)
+            do {
+                try await padService.addItem(text: text)
+            } catch {
+                print("Failed to add dropped text: \(error)")
+            }
         }
     }
 }

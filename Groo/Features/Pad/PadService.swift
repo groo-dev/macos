@@ -221,6 +221,45 @@ class PadService {
         items.insert(decryptedItem, at: 0)
     }
 
+    /// Add a new item with file attachments
+    func addItemWithFiles(text: String = "", files: [PadFileAttachment]) async throws {
+        guard let key = encryptionKey else {
+            throw PadError.noEncryptionKey
+        }
+
+        let encryptedText = try crypto.encrypt(text, using: key)
+        let item = PadListItem(
+            id: String(UUID().uuidString.prefix(8).lowercased()),
+            encryptedText: encryptedText.toPadEncryptedPayload(),
+            files: files,
+            createdAt: Int(Date().timeIntervalSince1970 * 1000)
+        )
+
+        let _: AddItemResponse = try await api.post(APIClient.Endpoint.list, body: item)
+
+        // Decrypt files for local state
+        var decryptedFiles: [DecryptedFileAttachment] = []
+        for file in files {
+            let name = try crypto.decrypt(file.encryptedName.toEncryptedPayload(), using: key)
+            let type = try crypto.decrypt(file.encryptedType.toEncryptedPayload(), using: key)
+            decryptedFiles.append(DecryptedFileAttachment(
+                id: file.id,
+                name: name,
+                type: type,
+                size: file.size,
+                r2Key: file.r2Key
+            ))
+        }
+
+        let decryptedItem = DecryptedListItem(
+            id: item.id,
+            text: text,
+            files: decryptedFiles,
+            createdAt: item.createdAt
+        )
+        items.insert(decryptedItem, at: 0)
+    }
+
     // MARK: - Delete Item
 
     /// Delete an item from the list
