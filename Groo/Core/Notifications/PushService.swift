@@ -24,6 +24,7 @@ struct DeviceRegistration: Encodable {
     let platform: String
     let environment: String
     let bundleId: String
+    let name: String
 }
 
 // MARK: - PushService
@@ -90,13 +91,16 @@ class PushService {
 
         // Register with accounts API
         let bundleId = Bundle.main.bundleIdentifier ?? "dev.groo.mac"
+        let deviceName = Host.current().localizedName ?? "Mac"
         print("[PushService] Bundle ID: \(bundleId)")
+        print("[PushService] Device name: \(deviceName)")
 
         let registration = DeviceRegistration(
             token: tokenString,
             platform: "macos",
             environment: environment,
-            bundleId: bundleId
+            bundleId: bundleId,
+            name: deviceName
         )
 
         let url = Config.accountsAPIBaseURL.appendingPathComponent("v1/devices")
