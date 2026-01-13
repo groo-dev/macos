@@ -6,7 +6,9 @@
 //
 
 import AppKit
+import PDFKit
 import SwiftUI
+import Zoomable
 
 // MARK: - Pending File Model
 
@@ -34,6 +36,48 @@ private struct PendingFile: Identifiable {
     }
 }
 
+// MARK: - Preview File Model
+
+private struct PreviewFile: Identifiable {
+    enum FileType {
+        case image
+        case pdf
+    }
+
+    let id = UUID()
+    let name: String
+    let data: Data
+    let type: FileType
+
+    static func canPreview(fileName: String) -> Bool {
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        return isImage(ext: ext) || isPDF(ext: ext)
+    }
+
+    static func isImage(ext: String) -> Bool {
+        ["png", "jpg", "jpeg", "gif", "webp", "heic", "bmp", "tiff", "tif"].contains(ext)
+    }
+
+    static func isPDF(ext: String) -> Bool {
+        ext == "pdf"
+    }
+
+    init?(name: String, data: Data) {
+        let ext = (name as NSString).pathExtension.lowercased()
+
+        if Self.isImage(ext: ext) {
+            self.type = .image
+        } else if Self.isPDF(ext: ext) {
+            self.type = .pdf
+        } else {
+            return nil  // Not previewable
+        }
+
+        self.name = name
+        self.data = data
+    }
+}
+
 struct MenuBarView: View {
     @Bindable var authService: AuthService
     @Bindable var padService: PadService
@@ -46,6 +90,7 @@ struct MenuBarView: View {
     @State private var showErrorToast = false
     @State private var errorMessage = ""
     @State private var pendingFiles: [PendingFile] = []
+    @State private var previewFile: PreviewFile? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -149,6 +194,9 @@ struct MenuBarView: View {
         }
         .onAppear {
             isTextFieldFocused = true
+        }
+        .sheet(item: $previewFile) { file in
+            InMemoryPreviewSheet(file: file)
         }
     }
 
@@ -403,7 +451,8 @@ struct MenuBarView: View {
                                 isSelected: selectedIndex == index,
                                 onCopy: { [item] in copyItem(item) },
                                 onDelete: { [item] in deleteItem(item) },
-                                onDownloadFile: { [item] file in downloadFile(file) }
+                                onPreviewFile: { file in previewFile(file) },
+                                onDownloadFile: { file in downloadFile(file) }
                             )
                             .id(item.id)
                             .transition(.asymmetric(
@@ -544,26 +593,46 @@ struct MenuBarView: View {
             do {
                 let data = try await padService.downloadFile(file)
 
-                // Save to Downloads folder
-                let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
-                let fileURL = downloadsURL.appendingPathComponent(file.name)
+                // Show save panel so user chooses where to save
+                let savePanel = NSSavePanel()
+                savePanel.nameFieldStringValue = file.name
+                savePanel.canCreateDirectories = true
 
-                // Handle duplicate filenames
-                var finalURL = fileURL
-                var counter = 1
-                while FileManager.default.fileExists(atPath: finalURL.path) {
-                    let name = (file.name as NSString).deletingPathExtension
-                    let ext = (file.name as NSString).pathExtension
-                    finalURL = downloadsURL.appendingPathComponent("\(name) (\(counter)).\(ext)")
-                    counter += 1
+                let response = await savePanel.beginSheetModal(for: NSApp.keyWindow ?? NSApp.windows.first!)
+
+                guard response == .OK, let url = savePanel.url else {
+                    return  // User cancelled
                 }
 
-                try data.write(to: finalURL)
+                try data.write(to: url)
 
                 // Open in Finder
-                NSWorkspace.shared.selectFile(finalURL.path, inFileViewerRootedAtPath: "")
+                NSWorkspace.shared.selectFile(url.path, inFileViewerRootedAtPath: "")
             } catch {
                 print("Failed to download file: \(error)")
+            }
+        }
+    }
+
+    private func previewFile(_ file: DecryptedFileAttachment) {
+        // Check if file type is previewable (images, PDFs)
+        if !PreviewFile.canPreview(fileName: file.name) {
+            // Not previewable - trigger download instead
+            downloadFile(file)
+            return
+        }
+
+        Task {
+            do {
+                let data = try await padService.downloadFile(file)
+                if let preview = PreviewFile(name: file.name, data: data) {
+                    previewFile = preview
+                } else {
+                    // Fallback to download if preview creation fails
+                    downloadFile(file)
+                }
+            } catch {
+                print("Failed to preview file: \(error)")
             }
         }
     }
@@ -576,6 +645,7 @@ private struct ItemRow: View {
     let isSelected: Bool
     let onCopy: () -> Void
     let onDelete: () -> Void
+    let onPreviewFile: (DecryptedFileAttachment) -> Void
     let onDownloadFile: (DecryptedFileAttachment) -> Void
 
     @State private var isHoveringText = false
@@ -617,7 +687,14 @@ private struct ItemRow: View {
                 HStack(spacing: Theme.Spacing.sm) {
                     ForEach(item.files) { file in
                         FileIcon(file: file) {
-                            onDownloadFile(file)
+                            onPreviewFile(file)
+                        }
+                        .contextMenu {
+                            Button {
+                                onDownloadFile(file)
+                            } label: {
+                                Label("Save to...", systemImage: "square.and.arrow.down")
+                            }
                         }
                     }
                 }
@@ -704,7 +781,7 @@ private struct FileIcon: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
-        .help("Download \(file.name)")
+        .help("Preview \(file.name) (right-click to save)")
     }
 }
 
@@ -1007,6 +1084,77 @@ private struct PasswordPromptView: View {
             isUnlocking = false
         }
     }
+}
+
+// MARK: - In-Memory Preview Sheet
+
+private struct InMemoryPreviewSheet: View {
+    let file: PreviewFile
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text(file.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer()
+
+                Button("Done") {
+                    dismiss()
+                }
+                .keyboardShortcut(.escape, modifiers: [])
+            }
+            .padding()
+            .background(.bar)
+
+            Divider()
+
+            // Content
+            switch file.type {
+            case .image:
+                ImagePreview(data: file.data)
+            case .pdf:
+                PDFPreview(data: file.data)
+            }
+        }
+        .frame(minWidth: 600, minHeight: 500)
+    }
+}
+
+private struct ImagePreview: View {
+    let data: Data
+
+    var body: some View {
+        if let nsImage = NSImage(data: data) {
+            Image(nsImage: nsImage)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .zoomable()
+                .background(Color(nsColor: .controlBackgroundColor))
+        } else {
+            ContentUnavailableView("Unable to load image", systemImage: "photo")
+        }
+    }
+}
+
+private struct PDFPreview: NSViewRepresentable {
+    let data: Data
+
+    func makeNSView(context: Context) -> PDFView {
+        let pdfView = PDFView()
+        pdfView.autoScales = true
+        pdfView.displayMode = .singlePageContinuous
+        if let document = PDFDocument(data: data) {
+            pdfView.document = document
+        }
+        return pdfView
+    }
+
+    func updateNSView(_ nsView: PDFView, context: Context) {}
 }
 
 // MARK: - Preview

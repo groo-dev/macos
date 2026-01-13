@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1B68BC6E2F12F447009FC0DA /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1B68BC622F12F447009FC0DA /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1BC8B11E2F15C642009FCD05 /* Zoomable in Frameworks */ = {isa = PBXBuildFile; productRef = 1BC8B11D2F15C642009FCD05 /* Zoomable */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,7 +37,7 @@
 
 /* Begin PBXFileReference section */
 		1B68BC622F12F447009FC0DA /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		1BCF123D2F128E5000D7FC9B /* Groo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Groo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1BCF123D2F128E5000D7FC9B /* Groo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = Groo.app; path = "Groo (Dev).app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -77,17 +78,26 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1BC8B11E2F15C642009FCD05 /* Zoomable in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		1BC8B11C2F15C642009FCD05 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		1BCF12342F128E5000D7FC9B = {
 			isa = PBXGroup;
 			children = (
 				1BCF123F2F128E5000D7FC9B /* Groo */,
 				1B68BC632F12F447009FC0DA /* ShareExtension */,
+				1BC8B11C2F15C642009FCD05 /* Frameworks */,
 				1BCF123E2F128E5000D7FC9B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -145,6 +155,7 @@
 			);
 			name = Groo;
 			packageProductDependencies = (
+				1BC8B11D2F15C642009FCD05 /* Zoomable */,
 			);
 			productName = Groo;
 			productReference = 1BCF123D2F128E5000D7FC9B /* Groo.app */;
@@ -177,6 +188,9 @@
 			);
 			mainGroup = 1BCF12342F128E5000D7FC9B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				1BC8B11B2F15C5AD009FCD05 /* XCRemoteSwiftPackageReference "Zoomable" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1BCF123E2F128E5000D7FC9B /* Products */;
 			projectDirPath = "";
@@ -529,6 +543,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		1BC8B11B2F15C5AD009FCD05 /* XCRemoteSwiftPackageReference "Zoomable" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ryohey/Zoomable.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1BC8B11D2F15C642009FCD05 /* Zoomable */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1BC8B11B2F15C5AD009FCD05 /* XCRemoteSwiftPackageReference "Zoomable" */;
+			productName = Zoomable;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1BCF12352F128E5000D7FC9B /* Project object */;
 }

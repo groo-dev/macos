@@ -112,6 +112,7 @@ extension KeychainService {
         // Encryption
         static let encryptionKey = "encryption_key"
         static let encryptionSalt = "encryption_salt"
+        static let encryptionTest = "encryption_test"
 
         // Push notifications
         static let deviceToken = "device_token"

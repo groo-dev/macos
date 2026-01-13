@@ -23,6 +23,7 @@ struct DeviceRegistration: Encodable {
     let token: String
     let platform: String
     let environment: String
+    let bundleId: String
 }
 
 // MARK: - PushService
@@ -65,6 +66,8 @@ class PushService {
 
     func registerDeviceToken(_ tokenData: Data) async throws {
         let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
+        print("[PushService] registerDeviceToken called")
+        print("[PushService] Token: \(tokenString.prefix(16))...")
 
         // Cache the token
         try keychain.save(tokenString, for: KeychainService.Key.deviceToken)
@@ -72,8 +75,10 @@ class PushService {
 
         // Get PAT for auth
         guard let patToken = try? keychain.loadString(for: KeychainService.Key.patToken) else {
+            print("[PushService] ERROR: No PAT token in keychain")
             throw PushError.noAuthToken
         }
+        print("[PushService] PAT token: \(patToken.prefix(20))...")
 
         // Determine environment
         #if DEBUG
@@ -81,27 +86,42 @@ class PushService {
         #else
         let environment = "production"
         #endif
+        print("[PushService] Environment: \(environment)")
 
         // Register with accounts API
+        let bundleId = Bundle.main.bundleIdentifier ?? "dev.groo.mac"
+        print("[PushService] Bundle ID: \(bundleId)")
+
         let registration = DeviceRegistration(
             token: tokenString,
             platform: "macos",
-            environment: environment
+            environment: environment,
+            bundleId: bundleId
         )
 
         let url = Config.accountsAPIBaseURL.appendingPathComponent("v1/devices")
+        print("[PushService] URL: \(url.absoluteString)")
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(patToken)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONEncoder().encode(registration)
 
+        print("[PushService] Sending registration request...")
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("[PushService] Registration failed: \(errorMessage)")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("[PushService] ERROR: Invalid response type")
+            throw PushError.registrationFailed
+        }
+
+        let responseBody = String(data: data, encoding: .utf8) ?? "empty"
+        print("[PushService] Response status: \(httpResponse.statusCode)")
+        print("[PushService] Response body: \(responseBody)")
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            print("[PushService] Registration failed: \(responseBody)")
             throw PushError.registrationFailed
         }
 
@@ -139,8 +159,12 @@ class PushService {
     // MARK: - Notification Handling
 
     func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) {
+        print("[PushService] Received notification: \(userInfo)")
+
         // Check if this is a sync notification
-        if let type = userInfo["type"] as? String, type == "sync" {
+        // The payload structure is: { "aps": {...}, "action": "sync" }
+        if let action = userInfo["action"] as? String, action == "sync" {
+            print("[PushService] Triggering sync")
             onSyncRequested?()
         }
     }

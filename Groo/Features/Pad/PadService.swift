@@ -3,6 +3,7 @@
 //  Groo
 //
 //  Pad feature service - handles state, encryption, and API calls.
+//  Uses local cache for offline-first architecture.
 //
 
 import AppKit
@@ -17,6 +18,7 @@ enum PadError: Error {
     case encryptionNotSetup
     case decryptionFailed
     case apiError(Error)
+    case offlineNoCache  // First unlock attempt while offline, no cached credentials
 }
 
 // MARK: - PadService
@@ -34,15 +36,24 @@ class PadService {
     private let api: APIClient
     private let crypto: CryptoService
     private let keychain: KeychainService
+    private let localStore: LocalStore
+    private(set) var syncService: SyncService!
 
     // Encryption key (derived from password)
     private var encryptionKey: SymmetricKey?
     private var encryptionSalt: Data?
 
-    init(api: APIClient, crypto: CryptoService = CryptoService(), keychain: KeychainService = KeychainService()) {
+    init(
+        api: APIClient,
+        crypto: CryptoService = CryptoService(),
+        keychain: KeychainService = KeychainService(),
+        localStore: LocalStore = LocalStore.shared
+    ) {
         self.api = api
         self.crypto = crypto
         self.keychain = keychain
+        self.localStore = localStore
+        self.syncService = SyncService(api: api, localStore: localStore)
     }
 
     // MARK: - Encryption Setup
@@ -73,50 +84,68 @@ class PadService {
     }
 
     /// Unlock with existing password
+    /// Uses cached credentials when available, falls back to remote when needed
     func unlock(password: String) async throws -> Bool {
-        print("[PadService] unlock() started")
-        print("[PadService] Fetching state from API...")
+        // Check if we have cached credentials
+        let hasCachedCredentials = keychain.exists(for: KeychainService.Key.encryptionSalt)
+            && keychain.exists(for: KeychainService.Key.encryptionTest)
 
-        let state: PadUserState
-        do {
-            state = try await api.get(APIClient.Endpoint.state)
-            print("[PadService] State fetched successfully")
-            print("[PadService] encryptionSalt: \(state.encryptionSalt ?? "nil")")
-            print("[PadService] encryptionTest: \(state.encryptionTest != nil ? "present" : "nil")")
-            print("[PadService] list items count: \(state.list.count)")
-        } catch {
-            print("[PadService] ERROR fetching state: \(error)")
-            throw error
+        if hasCachedCredentials {
+            // Try local verification first
+            let salt = try keychain.load(for: KeychainService.Key.encryptionSalt)
+            let testJSON = try keychain.load(for: KeychainService.Key.encryptionTest)
+            let testPayload = try JSONDecoder().decode(PadEncryptedPayload.self, from: testJSON)
+
+            let key = try crypto.deriveKey(password: password, salt: salt)
+
+            if crypto.verifyKey(key, with: testPayload.toEncryptedPayload()) {
+                // Local verification succeeded
+                encryptionKey = key
+                encryptionSalt = salt
+                return true
+            }
+
+            // Local verification failed - try remote if online
+            if syncService.isOnline {
+                return try await unlockWithRemote(password: password)
+            }
+
+            // Offline and local failed - wrong password
+            return false
+
+        } else {
+            // No cached credentials - must be online for first unlock
+            if !syncService.isOnline {
+                throw PadError.offlineNoCache
+            }
+
+            return try await unlockWithRemote(password: password)
         }
+    }
+
+    /// Fetch credentials from API, verify, and cache for offline use
+    private func unlockWithRemote(password: String) async throws -> Bool {
+        let state: PadUserState = try await api.get(APIClient.Endpoint.state)
 
         guard let saltBase64 = state.encryptionSalt,
               let salt = Data(base64Encoded: saltBase64),
               let testPayload = state.encryptionTest else {
-            print("[PadService] ERROR: Encryption not setup - missing salt or test payload")
             throw PadError.encryptionNotSetup
         }
 
-        print("[PadService] Salt decoded, length: \(salt.count) bytes")
-        print("[PadService] Test payload - ciphertext length: \(testPayload.ciphertext.count), iv: \(testPayload.iv)")
-
-        print("[PadService] Deriving key from password...")
         let key = try crypto.deriveKey(password: password, salt: salt)
-        print("[PadService] Key derived successfully")
 
-        // Verify the key by decrypting the test payload
-        print("[PadService] Verifying key with test payload...")
-        let encPayload = testPayload.toEncryptedPayload()
-        print("[PadService] EncryptedPayload - ciphertext: \(encPayload.ciphertext.prefix(20))..., iv: \(encPayload.iv.prefix(20))...")
+        if crypto.verifyKey(key, with: testPayload.toEncryptedPayload()) {
+            // Cache credentials for future offline use
+            try keychain.save(salt, for: KeychainService.Key.encryptionSalt)
+            let testJSON = try JSONEncoder().encode(testPayload)
+            try keychain.save(testJSON, for: KeychainService.Key.encryptionTest)
 
-        if crypto.verifyKey(key, with: encPayload) {
-            print("[PadService] Key verification SUCCESS!")
             encryptionKey = key
             encryptionSalt = salt
-            try keychain.save(salt, for: KeychainService.Key.encryptionSalt)
             return true
         }
 
-        print("[PadService] Key verification FAILED - incorrect password")
         return false
     }
 
@@ -132,7 +161,7 @@ class PadService {
 
     // MARK: - Data Loading
 
-    /// Fetch and decrypt all list items
+    /// Sync from server (if online) and load from local cache
     func refresh() async {
         guard let key = encryptionKey else {
             error = PadError.noEncryptionKey
@@ -142,14 +171,60 @@ class PadService {
         isLoading = true
         error = nil
 
+        // Sync from server first (if online)
+        await syncService.sync()
+
+        // Load from local cache
         do {
-            let state: PadUserState = try await api.get(APIClient.Endpoint.state)
-            items = try decryptListItems(state.list, using: key)
+            try loadItemsFromCache(using: key)
         } catch {
             self.error = error
         }
 
         isLoading = false
+    }
+
+    /// Load items from local cache without syncing (for when coming back online)
+    func loadFromCache() {
+        guard let key = encryptionKey else { return }
+        do {
+            try loadItemsFromCache(using: key)
+        } catch {
+            self.error = error
+        }
+    }
+
+    /// Decrypt items from local cache
+    private func loadItemsFromCache(using key: SymmetricKey) throws {
+        let localItems = localStore.getAllPadItems()
+        items = try decryptLocalItems(localItems, using: key)
+    }
+
+    private func decryptLocalItems(_ localItems: [LocalPadItem], using key: SymmetricKey) throws -> [DecryptedListItem] {
+        var decrypted: [DecryptedListItem] = []
+
+        for item in localItems {
+            guard let encryptedText = item.encryptedText else { continue }
+
+            do {
+                let text = try crypto.decrypt(encryptedText.toEncryptedPayload(), using: key)
+                let files = try decryptFileAttachments(item.files, using: key)
+
+                var decryptedItem = DecryptedListItem(
+                    id: item.id,
+                    text: text,
+                    files: files,
+                    createdAt: Int(item.createdAt.timeIntervalSince1970 * 1000)
+                )
+                // Mark as pending if not synced
+                decryptedItem.isPendingSync = item.isPendingSync
+                decrypted.append(decryptedItem)
+            } catch {
+                print("Failed to decrypt item \(item.id): \(error)")
+            }
+        }
+
+        return decrypted
     }
 
     private func decryptListItems(_ encryptedItems: [PadListItem], using key: SymmetricKey) throws -> [DecryptedListItem] {
@@ -194,48 +269,71 @@ class PadService {
 
     // MARK: - Add Item
 
-    /// Add a new text item to the list
+    /// Add a new text item to the list (offline-first)
     func addItem(text: String) async throws {
         guard let key = encryptionKey else {
             throw PadError.noEncryptionKey
         }
 
         let encryptedText = try crypto.encrypt(text, using: key)
+        let itemId = String(UUID().uuidString.prefix(8).lowercased())
+        let createdAt = Date()
         let item = PadListItem(
-            id: String(UUID().uuidString.prefix(8).lowercased()),
+            id: itemId,
             encryptedText: encryptedText.toPadEncryptedPayload(),
             files: [],
-            createdAt: Int(Date().timeIntervalSince1970 * 1000)
+            createdAt: Int(createdAt.timeIntervalSince1970 * 1000)
         )
 
-        // Send to API
-        let _: AddItemResponse = try await api.post(APIClient.Endpoint.list, body: item)
+        // Save to local cache first (optimistic)
+        let localItem = LocalPadItem(from: item)
+        localItem.isPendingSync = true
+        localStore.savePadItem(localItem)
 
-        // Add to local state on success
+        // Queue for sync
+        localStore.addPendingOperation(PendingOperation.createItem(item))
+
+        // Update UI immediately
         let decryptedItem = DecryptedListItem(
             id: item.id,
             text: text,
             files: [],
-            createdAt: item.createdAt
+            createdAt: item.createdAt,
+            isPendingSync: true
         )
         items.insert(decryptedItem, at: 0)
+
+        // Try to sync immediately if online
+        if syncService.isOnline {
+            await syncService.sync()
+            // Reload from cache to get updated sync status
+            loadFromCache()
+        }
     }
 
-    /// Add a new item with file attachments
+    /// Add a new item with file attachments (offline-first)
     func addItemWithFiles(text: String = "", files: [PadFileAttachment]) async throws {
         guard let key = encryptionKey else {
             throw PadError.noEncryptionKey
         }
 
         let encryptedText = try crypto.encrypt(text, using: key)
+        let itemId = String(UUID().uuidString.prefix(8).lowercased())
+        let createdAt = Date()
         let item = PadListItem(
-            id: String(UUID().uuidString.prefix(8).lowercased()),
+            id: itemId,
             encryptedText: encryptedText.toPadEncryptedPayload(),
             files: files,
-            createdAt: Int(Date().timeIntervalSince1970 * 1000)
+            createdAt: Int(createdAt.timeIntervalSince1970 * 1000)
         )
 
-        let _: AddItemResponse = try await api.post(APIClient.Endpoint.list, body: item)
+        // Save to local cache first
+        let localItem = LocalPadItem(from: item)
+        localItem.isPendingSync = true
+        localStore.savePadItem(localItem)
+
+        // Queue for sync
+        localStore.addPendingOperation(PendingOperation.createItem(item))
 
         // Decrypt files for local state
         var decryptedFiles: [DecryptedFileAttachment] = []
@@ -255,32 +353,73 @@ class PadService {
             id: item.id,
             text: text,
             files: decryptedFiles,
-            createdAt: item.createdAt
+            createdAt: item.createdAt,
+            isPendingSync: true
         )
         items.insert(decryptedItem, at: 0)
+
+        // Try to sync immediately if online
+        if syncService.isOnline {
+            await syncService.sync()
+            loadFromCache()
+        }
     }
 
     // MARK: - Delete Item
 
-    /// Delete an item from the list
+    /// Delete an item from the list (offline-first)
     func deleteItem(id: String) async throws {
-        // Delete via API
-        try await api.delete(APIClient.Endpoint.listItem(id))
+        // Delete from local cache first
+        localStore.deletePadItem(id: id)
 
-        // Remove from local state on success (reassign to trigger observation)
+        // Queue for sync
+        localStore.addPendingOperation(PendingOperation.deleteItem(id: id))
+
+        // Remove from UI immediately
         items = items.filter { $0.id != id }
+
+        // Try to sync immediately if online
+        if syncService.isOnline {
+            await syncService.sync()
+        }
     }
 
     // MARK: - File Operations
 
-    /// Download and decrypt a file
-    func downloadFile(_ file: DecryptedFileAttachment) async throws -> Data {
+    /// Download and decrypt a file (uses cache if available)
+    func downloadFile(_ file: DecryptedFileAttachment, itemId: String? = nil) async throws -> Data {
         guard let key = encryptionKey else {
             throw PadError.noEncryptionKey
         }
 
+        // Check local cache first
+        if let cached = localStore.getCachedFile(id: file.id) {
+            print("[PadService] Using cached file \(file.id)")
+            return try crypto.decryptData(cached.encryptedData, using: key)
+        }
+
+        // Download from server
         let encryptedData = try await api.downloadFile(from: APIClient.Endpoint.file(file.r2Key))
+
+        // Cache for offline use (if we know the item ID)
+        if let itemId = itemId {
+            let cached = LocalFileCache(
+                id: file.id,
+                itemId: itemId,
+                encryptedData: encryptedData,
+                fileName: file.name,
+                fileType: file.type,
+                fileSize: file.size
+            )
+            localStore.cacheFile(cached)
+        }
+
         return try crypto.decryptData(encryptedData, using: key)
+    }
+
+    /// Check if a file is cached locally
+    func isFileCached(id: String) -> Bool {
+        localStore.getCachedFile(id: id) != nil
     }
 
     /// Encrypt and upload a file
@@ -315,5 +454,25 @@ class PadService {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+    }
+
+    // MARK: - Cache Management
+
+    /// Clear all local data (for logout)
+    func clearLocalData() {
+        localStore.clearAllPadItems()
+        localStore.clearPendingOperations()
+        localStore.clearFileCache()
+        items = []
+    }
+
+    /// Get file cache statistics
+    func getFileCacheStats() -> (count: Int, sizeBytes: Int64) {
+        (localStore.getFileCacheCount(), localStore.getFileCacheSize())
+    }
+
+    /// Get pending operations count
+    var pendingOperationsCount: Int {
+        syncService.pendingCount
     }
 }

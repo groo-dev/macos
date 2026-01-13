@@ -79,12 +79,14 @@ struct DecryptedListItem: Identifiable, Equatable {
     let text: String
     let files: [DecryptedFileAttachment]
     let createdAt: Date
+    var isPendingSync: Bool  // True if created offline and not yet synced
 
-    init(id: String, text: String, files: [DecryptedFileAttachment], createdAt: Int) {
+    init(id: String, text: String, files: [DecryptedFileAttachment], createdAt: Int, isPendingSync: Bool = false) {
         self.id = id
         self.text = text
         self.files = files
         self.createdAt = Date(timeIntervalSince1970: Double(createdAt) / 1000)
+        self.isPendingSync = isPendingSync
     }
 }
 

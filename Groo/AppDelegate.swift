@@ -157,10 +157,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         padService = PadService(api: apiClient)
         pushService = PushService()
 
-        // Connect push service to pad service for sync
+        // Connect push service to sync service (works even when locked)
+        // This pulls encrypted data to local cache - decryption happens when user unlocks
         pushService.onSyncRequested = { [weak self] in
             Task { @MainActor in
-                await self?.padService.refresh()
+                guard let self = self else { return }
+                // Use syncService directly so background sync works even when locked
+                await self.padService.syncService.syncMetadataOnly()
+
+                // If already unlocked, reload items from cache
+                if self.padService.isUnlocked {
+                    self.padService.loadFromCache()
+                }
             }
         }
     }
@@ -208,10 +216,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
 
-            // Auto-refresh when popover opens (if unlocked)
+            // Auto-sync when popover opens (if unlocked)
+            // Uses offline-first: loads from cache first, syncs in background
             if padService.isUnlocked {
                 Task { @MainActor in
-                    await padService.refresh()
+                    // Load from cache immediately (fast)
+                    padService.loadFromCache()
+                    // Then sync in background (if online)
+                    await padService.syncService.sync()
+                    // Reload after sync to show any new items
+                    padService.loadFromCache()
                 }
             }
         }

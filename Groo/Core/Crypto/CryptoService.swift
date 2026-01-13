@@ -111,32 +111,19 @@ struct CryptoService {
 
     /// Decrypt an EncryptedPayload back to string
     func decrypt(_ payload: EncryptedPayload, using key: SymmetricKey) throws -> String {
-        print("[CryptoService] decrypt() - ciphertext base64: \(payload.ciphertext.prefix(30))...")
-        print("[CryptoService] decrypt() - iv base64: \(payload.iv)")
-
         guard let ciphertextWithTag = Data(base64Encoded: payload.ciphertext),
               let ivData = Data(base64Encoded: payload.iv) else {
-            print("[CryptoService] ERROR: Invalid base64")
             throw CryptoError.invalidBase64
         }
-
-        print("[CryptoService] ciphertextWithTag bytes: \(ciphertextWithTag.count)")
-        print("[CryptoService] ivData bytes: \(ivData.count)")
-
-        let nonce = try AES.GCM.Nonce(data: ivData)
 
         // Reconstruct combined data (nonce + ciphertext + tag)
         var combined = Data(ivData)
         combined.append(ciphertextWithTag)
-        print("[CryptoService] combined bytes: \(combined.count)")
 
         let sealedBox = try AES.GCM.SealedBox(combined: combined)
-        print("[CryptoService] SealedBox created, attempting decryption...")
         let decrypted = try AES.GCM.open(sealedBox, using: key)
-        print("[CryptoService] Decryption successful, bytes: \(decrypted.count)")
 
         guard let plaintext = String(data: decrypted, encoding: .utf8) else {
-            print("[CryptoService] ERROR: Could not decode as UTF-8")
             throw CryptoError.decryptionFailed
         }
 
@@ -170,15 +157,10 @@ struct CryptoService {
 
     /// Verify a password by attempting to decrypt a test payload
     func verifyKey(_ key: SymmetricKey, with testPayload: EncryptedPayload) -> Bool {
-        print("[CryptoService] verifyKey() - attempting decryption")
-        print("[CryptoService] testPayload.ciphertext length: \(testPayload.ciphertext.count)")
-        print("[CryptoService] testPayload.iv length: \(testPayload.iv.count)")
         do {
-            let decrypted = try decrypt(testPayload, using: key)
-            print("[CryptoService] Decryption successful! Result: \(decrypted)")
+            _ = try decrypt(testPayload, using: key)
             return true
         } catch {
-            print("[CryptoService] Decryption failed: \(error)")
             return false
         }
     }
