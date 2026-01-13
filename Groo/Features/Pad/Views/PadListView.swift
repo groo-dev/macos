@@ -6,9 +6,7 @@
 //
 
 import AppKit
-import PDFKit
 import SwiftUI
-import Zoomable
 
 // MARK: - Pending File Model
 
@@ -36,48 +34,6 @@ private struct PendingFile: Identifiable {
     }
 }
 
-// MARK: - Preview File Model
-
-private struct PreviewFile: Identifiable {
-    enum FileType {
-        case image
-        case pdf
-    }
-
-    let id = UUID()
-    let name: String
-    let data: Data
-    let type: FileType
-
-    static func canPreview(fileName: String) -> Bool {
-        let ext = (fileName as NSString).pathExtension.lowercased()
-        return isImage(ext: ext) || isPDF(ext: ext)
-    }
-
-    static func isImage(ext: String) -> Bool {
-        ["png", "jpg", "jpeg", "gif", "webp", "heic", "bmp", "tiff", "tif"].contains(ext)
-    }
-
-    static func isPDF(ext: String) -> Bool {
-        ext == "pdf"
-    }
-
-    init?(name: String, data: Data) {
-        let ext = (name as NSString).pathExtension.lowercased()
-
-        if Self.isImage(ext: ext) {
-            self.type = .image
-        } else if Self.isPDF(ext: ext) {
-            self.type = .pdf
-        } else {
-            return nil  // Not previewable
-        }
-
-        self.name = name
-        self.data = data
-    }
-}
-
 struct PadListView: View {
     @Bindable var padService: PadService
 
@@ -88,7 +44,6 @@ struct PadListView: View {
     @State private var errorMessage = ""
     @State private var textEditorHeight: CGFloat = 22
     @State private var pendingFiles: [PendingFile] = []
-    @State private var previewFile: PreviewFile? = nil
     @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
@@ -172,9 +127,6 @@ struct PadListView: View {
             if padService.items.isEmpty && padService.isUnlocked {
                 await padService.refresh()
             }
-        }
-        .sheet(item: $previewFile) { file in
-            InMemoryPreviewSheet(file: file)
         }
     }
 
@@ -617,21 +569,11 @@ struct PadListView: View {
     }
 
     private func previewFile(_ file: DecryptedFileAttachment) {
-        // Check if file type is previewable (images, PDFs)
-        if !PreviewFile.canPreview(fileName: file.name) {
-            // Not previewable - trigger download instead
-            downloadFile(file)
-            return
-        }
-
         Task {
             do {
                 let data = try await padService.downloadFile(file)
-                if let preview = PreviewFile(name: file.name, data: data) {
-                    previewFile = preview
-                } else {
-                    // Fallback to download if preview creation fails
-                    downloadFile(file)
+                await MainActor.run {
+                    AppDelegate.shared?.showQuickLookPreview(name: file.name, data: data)
                 }
             } catch {
                 print("Failed to preview file: \(error)")
@@ -940,83 +882,6 @@ private struct CustomTextEditor: NSViewRepresentable {
             }
             return false
         }
-    }
-}
-
-// MARK: - In-Memory Preview Sheet
-
-private struct InMemoryPreviewSheet: View {
-    let file: PreviewFile
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text(file.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Spacer()
-
-                Button("Done") {
-                    dismiss()
-                }
-                .keyboardShortcut(.escape, modifiers: [])
-            }
-            .padding()
-            .background(.bar)
-
-            Divider()
-
-            // Content
-            switch file.type {
-            case .image:
-                ImagePreview(data: file.data)
-            case .pdf:
-                PDFPreview(data: file.data)
-            }
-        }
-        .frame(minWidth: 600, minHeight: 500)
-    }
-}
-
-// MARK: - Image Preview (in-memory)
-
-private struct ImagePreview: View {
-    let data: Data
-
-    var body: some View {
-        if let nsImage = NSImage(data: data) {
-            Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .zoomable()
-                .background(Color(nsColor: .controlBackgroundColor))
-        } else {
-            ContentUnavailableView("Unable to load image", systemImage: "photo")
-        }
-    }
-}
-
-// MARK: - PDF Preview (in-memory)
-
-private struct PDFPreview: NSViewRepresentable {
-    let data: Data
-
-    func makeNSView(context: Context) -> PDFView {
-        let pdfView = PDFView()
-        pdfView.autoScales = true
-        pdfView.displayMode = .singlePageContinuous
-        if let document = PDFDocument(data: data) {
-            pdfView.document = document
-        }
-        return pdfView
-    }
-
-    func updateNSView(_ nsView: PDFView, context: Context) {
-        // No update needed - data doesn't change
     }
 }
 

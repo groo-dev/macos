@@ -6,9 +6,28 @@
 //
 
 import AppKit
+import Quartz
 import SwiftUI
 
+// MARK: - QuickLook Preview Item
+
+class PreviewItem: NSObject, QLPreviewItem {
+    let fileURL: URL
+    let fileName: String
+
+    init(fileURL: URL, fileName: String) {
+        self.fileURL = fileURL
+        self.fileName = fileName
+    }
+
+    var previewItemURL: URL? { fileURL }
+    var previewItemTitle: String? { fileName }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate {
+    // Shared instance for access from SwiftUI views
+    static private(set) var shared: AppDelegate?
+
     // Menu bar
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
@@ -22,9 +41,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Window management
     private var mainWindow: NSWindow?
 
+    // QuickLook preview
+    private var previewItem: PreviewItem?
+
     // MARK: - App Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Set shared instance
+        AppDelegate.shared = self
+
         // Initialize services
         setupServices()
 
@@ -274,6 +299,50 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    // MARK: - QuickLook Preview
+
+    func showQuickLookPreview(name: String, data: Data) {
+        // Create secure temp directory within app's sandbox container
+        guard let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            print("Failed to get caches directory")
+            return
+        }
+        let tempDir = cachesURL.appendingPathComponent("GrooPreview", isDirectory: true)
+
+        do {
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: tempDir.path)
+        } catch {
+            print("Failed to create temp directory: \(error)")
+            return
+        }
+
+        // Write with random UUID name but correct extension
+        let ext = (name as NSString).pathExtension
+        let tempURL = tempDir.appendingPathComponent("\(UUID().uuidString).\(ext)")
+
+        do {
+            try data.write(to: tempURL)
+            previewItem = PreviewItem(fileURL: tempURL, fileName: name)
+
+            // Show QuickLook panel
+            if let panel = QLPreviewPanel.shared() {
+                panel.dataSource = self
+                panel.delegate = self
+                panel.makeKeyAndOrderFront(nil)
+            }
+        } catch {
+            print("Failed to write temp file: \(error)")
+        }
+    }
+
+    private func cleanupPreviewFile() {
+        if let url = previewItem?.fileURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        previewItem = nil
+    }
+
     // MARK: - Push Notifications
 
     private func setupPushNotifications() {
@@ -372,11 +441,24 @@ extension AppDelegate: NSDraggingDestination {
 
 // MARK: - Window Delegate
 
-extension AppDelegate: NSWindowDelegate {
-    func windowWillClose(_ notification: Notification) {
-        // Window will be reused, no cleanup needed
+extension AppDelegate: NSWindowDelegate {}
+
+// MARK: - QuickLook Panel DataSource & Delegate
+
+extension AppDelegate: QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+        return previewItem != nil ? 1 : 0
+    }
+
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
+        return previewItem
+    }
+
+    func previewPanelDidClose(_ panel: QLPreviewPanel!) {
+        cleanupPreviewFile()
     }
 }
+
 
 // MARK: - Share Extension Models
 
