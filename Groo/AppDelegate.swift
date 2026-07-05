@@ -311,18 +311,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Sign In
 
-    /// ASWebAuthenticationSession must be presented from a stable window. The
-    /// menubar popover is `.transient`, so it gets torn down the instant the
-    /// auth sheet takes key focus — presenting against it kills the app
-    /// (SafariViewService faults, process SIGKILLed). So popover-initiated
-    /// sign-in is routed here: close the popover, bring up the real main
-    /// window, and anchor the flow to it.
+    /// ASWebAuthenticationSession must be presented from a stable window: the
+    /// menubar popover is `.transient` and gets torn down the instant the auth
+    /// sheet takes key focus, so it can't serve as the anchor. Rather than force
+    /// the full main window open (jarring UX), anchor to the status-bar item's
+    /// own window — an always-present, stable `NSWindow` — and keep the flow
+    /// lightweight. After a successful sign-in the popover reflects the
+    /// signed-in state on next open.
     @MainActor
     func beginSignIn() {
         closePopover()
-        showMainWindow()
-        guard let anchor = mainWindow else {
-            NSLog("[Auth] beginSignIn: no main window to anchor to")
+        guard let anchor = statusItem?.button?.window else {
+            NSLog("[Auth] beginSignIn: no status-bar window to anchor to")
             return
         }
         Task { @MainActor in
