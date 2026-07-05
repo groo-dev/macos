@@ -15,6 +15,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pin the toolchain: macos-latest's DEFAULT xcodebuild has drifted to an
+      # older Xcode (16.4) whose stricter Swift-6 concurrency checking made the
+      # archive nondeterministically red. Prefer Xcode 26.4.x; fall back to the
+      # newest installed so the release never fails purely on toolchain
+      # selection. The chosen version is printed for the record.
+      - name: Select Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26.4*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "Xcode 26.4.x not found; using newest installed. Available:"
+            ls -d /Applications/Xcode_*.app
+            XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          fi
+          echo "Selecting $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
       - name: Get version
         id: version
         uses: groo-dev/record-release@v1
