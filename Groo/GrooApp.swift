@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import GrooAuth
 
 @main
 struct GrooApp: App {
@@ -68,8 +69,8 @@ private struct GeneralSettingsView: View {
 private struct AccountSettingsView: View {
     let appDelegate: AppDelegate
 
-    @State private var patToken = ""
-    @State private var showError = false
+    @State private var isSigningIn = false
+    @State private var errorMessage: String?
 
     var body: some View {
         Form {
@@ -79,7 +80,7 @@ private struct AccountSettingsView: View {
                         Circle()
                             .fill(Color.green)
                             .frame(width: 8, height: 8)
-                        Text("Signed In")
+                        Text(appDelegate.authService?.currentUserEmail ?? "Signed In")
                     }
                 }
 
@@ -96,7 +97,7 @@ private struct AccountSettingsView: View {
                     .disabled(appDelegate.padService?.isUnlocked != true)
 
                     Button("Sign Out") {
-                        try? appDelegate.authService?.logout()
+                        signOut()
                     }
                 }
             } else {
@@ -105,34 +106,51 @@ private struct AccountSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Button("Open Account Settings") {
-                    appDelegate.authService?.openAccountSettings()
-                }
-
-                TextField("Paste PAT here...", text: $patToken)
-                    .textFieldStyle(.roundedBorder)
-
-                if showError {
-                    Text("Invalid token")
+                if let errorMessage {
+                    Text(errorMessage)
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
 
-                Button("Sign In") {
+                Button {
                     signIn()
+                } label: {
+                    if isSigningIn {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Sign in with Groo")
+                    }
                 }
-                .disabled(patToken.isEmpty)
+                .disabled(isSigningIn)
             }
         }
         .padding()
     }
 
     private func signIn() {
-        showError = false
-        do {
-            try appDelegate.authService?.login(patToken: patToken)
-        } catch {
-            showError = true
+        errorMessage = nil
+        isSigningIn = true
+        let anchor = NSApp.keyWindow ?? NSApp.windows.first
+        Task {
+            defer { isSigningIn = false }
+            guard let authService = appDelegate.authService, let anchor else {
+                errorMessage = "No window available to present sign-in."
+                return
+            }
+            do {
+                try await authService.startSignIn(anchor: anchor)
+            } catch GrooAuthError.userCancelled {
+                // User dismissed the sign-in sheet; nothing to report.
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func signOut() {
+        Task {
+            await appDelegate.authService?.logout()
         }
     }
 }

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import GrooAuth
 
 struct MainWindowView: View {
     @Bindable var authService: AuthService
@@ -145,7 +146,9 @@ private struct PadDetailView: View {
                         }
                         Divider()
                         Button("Sign Out") {
-                            try? authService.logout()
+                            Task {
+                                await authService.logout()
+                            }
                         }
                     } label: {
                         Image(systemName: "person.crop.circle")
@@ -161,7 +164,7 @@ private struct PadDetailView: View {
 private struct LoginView: View {
     @Bindable var authService: AuthService
 
-    @State private var patToken = ""
+    @State private var isSigningIn = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -174,79 +177,53 @@ private struct LoginView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Sign in with a Personal Access Token")
+            Text("Sign in with your Groo account to continue")
                 .font(.headline)
                 .foregroundStyle(.secondary)
 
-            // Instructions
-            VStack(alignment: .leading, spacing: 8) {
-                instructionRow(number: "1", text: "Click below to open account settings")
-                instructionRow(number: "2", text: "Create a new Personal Access Token")
-                instructionRow(number: "3", text: "Copy and paste the token below")
+            if let error = errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
-            .frame(maxWidth: 350)
 
-            // Open settings button
             Button {
-                authService.openAccountSettings()
+                signIn()
             } label: {
-                Label("Open Account Settings", systemImage: "safari")
+                if isSigningIn {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(width: 160)
+                } else {
+                    Text("Sign in with Groo")
+                        .frame(width: 160)
+                }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
             .controlSize(.large)
-
-            // PAT input
-            VStack(spacing: 12) {
-                TextField("Paste your token here...", text: $patToken)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 350)
-                    .onSubmit {
-                        signIn()
-                    }
-
-                if let error = errorMessage {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                Button {
-                    signIn()
-                } label: {
-                    Text("Sign In")
-                        .frame(width: 120)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(patToken.isEmpty)
-            }
+            .disabled(isSigningIn)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    private func instructionRow(number: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(number)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.white)
-                .frame(width: 20, height: 20)
-                .background(Color.accentColor)
-                .clipShape(Circle())
-
-            Text(text)
-                .font(.body)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private func signIn() {
         errorMessage = nil
-        do {
-            try authService.login(patToken: patToken)
-        } catch {
-            errorMessage = "Invalid token. Please try again."
+        isSigningIn = true
+        let anchor = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first
+        Task {
+            defer { isSigningIn = false }
+            guard let anchor else {
+                errorMessage = "No window available to present sign-in."
+                return
+            }
+            do {
+                try await authService.startSignIn(anchor: anchor)
+            } catch GrooAuthError.userCancelled {
+                // User dismissed the sign-in sheet; nothing to report.
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }

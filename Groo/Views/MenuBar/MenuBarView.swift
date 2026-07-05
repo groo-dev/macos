@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import GrooAuth
 
 // MARK: - Pending File Model
 
@@ -473,7 +474,9 @@ struct MenuBarView: View {
                 }
                 Divider()
                 Button("Sign Out") {
-                    try? authService.logout()
+                    Task {
+                        await authService.logout()
+                    }
                 }
                 Divider()
                 Button("Quit Groo") {
@@ -877,8 +880,8 @@ private struct CustomTextEditor: NSViewRepresentable {
 private struct LoginPromptView: View {
     @Bindable var authService: AuthService
 
-    @State private var patToken = ""
-    @State private var showError = false
+    @State private var isSigningIn = false
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: Theme.Spacing.lg) {
@@ -891,29 +894,26 @@ private struct LoginPromptView: View {
             Text("Sign in to Groo")
                 .font(.headline)
 
-            Button {
-                authService.openAccountSettings()
-            } label: {
-                Text("Open Account Settings")
-                    .font(.caption)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-
-            TextField("Paste PAT token...", text: $patToken)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 220)
-                .onSubmit { signIn() }
-
-            if showError {
-                Text("Invalid token")
+            if let errorMessage {
+                Text(errorMessage)
                     .font(.caption)
                     .foregroundStyle(Theme.Colors.error)
             }
 
-            Button("Sign In") { signIn() }
-                .buttonStyle(.borderedProminent)
-                .disabled(patToken.isEmpty)
+            Button {
+                signIn()
+            } label: {
+                if isSigningIn {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(width: 150)
+                } else {
+                    Text("Sign in with Groo")
+                        .frame(width: 150)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isSigningIn)
 
             Spacer()
         }
@@ -921,11 +921,22 @@ private struct LoginPromptView: View {
     }
 
     private func signIn() {
-        showError = false
-        do {
-            try authService.login(patToken: patToken)
-        } catch {
-            showError = true
+        errorMessage = nil
+        isSigningIn = true
+        let anchor = NSApp.keyWindow ?? NSApp.windows.first
+        Task {
+            defer { isSigningIn = false }
+            guard let anchor else {
+                errorMessage = "No window available to present sign-in."
+                return
+            }
+            do {
+                try await authService.startSignIn(anchor: anchor)
+            } catch GrooAuthError.userCancelled {
+                // User dismissed the sign-in sheet; nothing to report.
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }
@@ -987,7 +998,9 @@ private struct PasswordPromptView: View {
             // Footer with actions
             HStack(spacing: Theme.Spacing.sm) {
                 Button("Sign Out") {
-                    try? authService.logout()
+                    Task {
+                        await authService.logout()
+                    }
                 }
                 .buttonStyle(.borderless)
                 .font(.caption)

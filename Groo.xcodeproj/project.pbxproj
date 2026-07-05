@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1B68BC6E2F12F447009FC0DA /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1B68BC622F12F447009FC0DA /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1BC8B11E2F15C642009FCD05 /* Zoomable in Frameworks */ = {isa = PBXBuildFile; productRef = 1BC8B11D2F15C642009FCD05 /* Zoomable */; };
+		2027C3261A534AE69FB75EF0 /* GrooAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 0586BF26B9AB4100A4D6AC79 /* GrooAuth */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +80,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1BC8B11E2F15C642009FCD05 /* Zoomable in Frameworks */,
+				2027C3261A534AE69FB75EF0 /* GrooAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -156,6 +158,7 @@
 			name = Groo;
 			packageProductDependencies = (
 				1BC8B11D2F15C642009FCD05 /* Zoomable */,
+				0586BF26B9AB4100A4D6AC79 /* GrooAuth */,
 			);
 			productName = Groo;
 			productReference = 1BCF123D2F128E5000D7FC9B /* Groo.app */;
@@ -190,6 +193,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				1BC8B11B2F15C5AD009FCD05 /* XCRemoteSwiftPackageReference "Zoomable" */,
+				21DD74912FAD4E18AD2ECA94 /* XCLocalSwiftPackageReference "../auth-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1BCF123E2F128E5000D7FC9B /* Products */;
@@ -544,6 +548,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		21DD74912FAD4E18AD2ECA94 /* XCLocalSwiftPackageReference "../auth-swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../auth-swift";
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		1BC8B11B2F15C5AD009FCD05 /* XCRemoteSwiftPackageReference "Zoomable" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -560,6 +571,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1BC8B11B2F15C5AD009FCD05 /* XCRemoteSwiftPackageReference "Zoomable" */;
 			productName = Zoomable;
+		};
+		0586BF26B9AB4100A4D6AC79 /* GrooAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 21DD74912FAD4E18AD2ECA94 /* XCLocalSwiftPackageReference "../auth-swift" */;
+			productName = GrooAuth;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
