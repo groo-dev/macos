@@ -7,6 +7,13 @@
 
 import SwiftUI
 import GrooAuth
+import os
+
+/// Diagnostic-only logger for resolving the sign-in presentation anchor
+/// (`NSWindow`). A nil, hidden, or zero-frame anchor here is a prime suspect
+/// for macOS-only sign-in failures, since `ASWebAuthenticationSession`
+/// requires a valid, visible anchor window to present against.
+let signInAnchorLog = os.Logger(subsystem: Bundle.main.bundleIdentifier ?? "dev.groo.mac", category: "signin-anchor")
 
 struct MainWindowView: View {
     @Bindable var authService: AuthService
@@ -210,7 +217,18 @@ private struct LoginView: View {
     private func signIn() {
         errorMessage = nil
         isSigningIn = true
-        let anchor = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first
+        let keyWindow = NSApplication.shared.keyWindow
+        let firstWindow = NSApplication.shared.windows.first
+        let anchor = keyWindow ?? firstWindow
+        let source = keyWindow != nil ? "NSApp.keyWindow" : (firstWindow != nil ? "NSApp.windows.first" : "none")
+        if let anchor {
+            signInAnchorLog.notice("MainWindowView.signIn: resolved anchor source=\(source, privacy: .public) isVisible=\(anchor.isVisible, privacy: .public) isKeyWindow=\(anchor.isKeyWindow, privacy: .public) frame=\(NSStringFromRect(anchor.frame), privacy: .public)")
+            if !anchor.isVisible || anchor.frame.isEmpty {
+                signInAnchorLog.error("MainWindowView.signIn: SUSPECT anchor is hidden or zero-frame — ASWebAuthenticationSession may fault presenting against it")
+            }
+        } else {
+            signInAnchorLog.error("MainWindowView.signIn: SUSPECT no anchor resolved (both NSApp.keyWindow and NSApp.windows.first are nil)")
+        }
         Task {
             defer { isSigningIn = false }
             guard let anchor else {

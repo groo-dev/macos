@@ -78,7 +78,14 @@ final class AuthService {
     /// Presents the OAuth web sign-in flow anchored to `anchor`. On success,
     /// `isAuthenticated`/`currentUserEmail` update via `stateStream`.
     func startSignIn(anchor: NSWindow) async throws {
-        _ = try await session.signIn(presentationAnchor: anchor)
+        log.notice("startSignIn: entry anchorClass=\(NSStringFromClass(type(of: anchor)), privacy: .public) isKeyWindow=\(anchor.isKeyWindow, privacy: .public) isVisible=\(anchor.isVisible, privacy: .public) frame=\(NSStringFromRect(anchor.frame), privacy: .public)")
+        do {
+            _ = try await session.signIn(presentationAnchor: anchor)
+            log.notice("startSignIn: success")
+        } catch {
+            log.error("startSignIn: FAILED error=\(String(describing: error), privacy: .public)")
+            throw error
+        }
     }
 
     /// Signs out locally and attempts server-side revocation. Never throws —

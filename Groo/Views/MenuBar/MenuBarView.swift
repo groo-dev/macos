@@ -8,6 +8,7 @@
 import AppKit
 import SwiftUI
 import GrooAuth
+import os
 
 // MARK: - Pending File Model
 
@@ -923,7 +924,18 @@ private struct LoginPromptView: View {
     private func signIn() {
         errorMessage = nil
         isSigningIn = true
-        let anchor = NSApp.keyWindow ?? NSApp.windows.first
+        let keyWindow = NSApp.keyWindow
+        let firstWindow = NSApp.windows.first
+        let anchor = keyWindow ?? firstWindow
+        let source = keyWindow != nil ? "NSApp.keyWindow" : (firstWindow != nil ? "NSApp.windows.first" : "none")
+        if let anchor {
+            signInAnchorLog.notice("MenuBarView.signIn: resolved anchor source=\(source, privacy: .public) isVisible=\(anchor.isVisible, privacy: .public) isKeyWindow=\(anchor.isKeyWindow, privacy: .public) frame=\(NSStringFromRect(anchor.frame), privacy: .public)")
+            if !anchor.isVisible || anchor.frame.isEmpty {
+                signInAnchorLog.error("MenuBarView.signIn: SUSPECT anchor is hidden or zero-frame — ASWebAuthenticationSession may fault presenting against it")
+            }
+        } else {
+            signInAnchorLog.error("MenuBarView.signIn: SUSPECT no anchor resolved (both NSApp.keyWindow and NSApp.windows.first are nil) — the menu bar popover itself is not an NSWindow subclass usable here")
+        }
         Task {
             defer { isSigningIn = false }
             guard let anchor else {
