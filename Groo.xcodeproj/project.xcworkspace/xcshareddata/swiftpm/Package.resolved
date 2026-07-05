@@ -1,6 +1,15 @@
 {
-  "originHash" : "d54fdfe98a5f7ac95a096856b355d7069db3ffc6886ae09b5e514d261f04173b",
+  "originHash" : "31ee65dba9c0589099209760259538a4975161d6f92427ec156be739e874e273",
   "pins" : [
+    {
+      "identity" : "auth-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/groo-dev/auth-swift.git",
+      "state" : {
+        "revision" : "1f279d6a00b5a1271bfbcb0d0db659a36e976d32",
+        "version" : "0.0.2"
+      }
+    },
     {
       "identity" : "zoomable",
       "kind" : "remoteSourceControl",

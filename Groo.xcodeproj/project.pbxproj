@@ -193,7 +193,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				1BC8B11B2F15C5AD009FCD05 /* XCRemoteSwiftPackageReference "Zoomable" */,
-				21DD74912FAD4E18AD2ECA94 /* XCLocalSwiftPackageReference "../auth-swift" */,
+				21DD74912FAD4E18AD2ECA94 /* XCRemoteSwiftPackageReference "auth-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1BCF123E2F128E5000D7FC9B /* Products */;
@@ -548,14 +548,15 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		21DD74912FAD4E18AD2ECA94 /* XCLocalSwiftPackageReference "../auth-swift" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "../auth-swift";
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
+		21DD74912FAD4E18AD2ECA94 /* XCRemoteSwiftPackageReference "auth-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groo-dev/auth-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.2;
+			};
+		};
 		1BC8B11B2F15C5AD009FCD05 /* XCRemoteSwiftPackageReference "Zoomable" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ryohey/Zoomable.git";
@@ -574,7 +575,7 @@
 		};
 		0586BF26B9AB4100A4D6AC79 /* GrooAuth */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 21DD74912FAD4E18AD2ECA94 /* XCLocalSwiftPackageReference "../auth-swift" */;
+			package = 21DD74912FAD4E18AD2ECA94 /* XCRemoteSwiftPackageReference "auth-swift" */;
 			productName = GrooAuth;
 		};
 /* End XCSwiftPackageProductDependency section */
