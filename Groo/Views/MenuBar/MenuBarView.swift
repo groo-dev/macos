@@ -40,6 +40,7 @@ struct MenuBarView: View {
     @Bindable var authService: AuthService
     @Bindable var padService: PadService
     var onOpenMainWindow: () -> Void
+    var onSignIn: () -> Void
 
     @State private var newItemText = ""
     @State private var selectedIndex: Int? = nil
@@ -52,7 +53,7 @@ struct MenuBarView: View {
     var body: some View {
         VStack(spacing: 0) {
             if !authService.isAuthenticated {
-                LoginPromptView(authService: authService)
+                LoginPromptView(authService: authService, onSignIn: onSignIn)
             } else if !padService.isUnlocked {
                 PasswordPromptView(authService: authService, padService: padService)
             } else {
@@ -880,9 +881,11 @@ private struct CustomTextEditor: NSViewRepresentable {
 
 private struct LoginPromptView: View {
     @Bindable var authService: AuthService
-
-    @State private var isSigningIn = false
-    @State private var errorMessage: String?
+    /// Starts sign-in through `AppDelegate.beginSignIn()`, which closes this
+    /// popover and anchors `ASWebAuthenticationSession` to the stable main
+    /// window. The popover's own `_NSPopoverWindow` is transient and is torn
+    /// down under the presenting sheet — anchoring to it crashes the app.
+    var onSignIn: () -> Void
 
     var body: some View {
         VStack(spacing: Theme.Spacing.lg) {
@@ -895,61 +898,17 @@ private struct LoginPromptView: View {
             Text("Sign in to Groo")
                 .font(.headline)
 
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(Theme.Colors.error)
-            }
-
             Button {
-                signIn()
+                onSignIn()
             } label: {
-                if isSigningIn {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(width: 150)
-                } else {
-                    Text("Sign in with Groo")
-                        .frame(width: 150)
-                }
+                Text("Sign in with Groo")
+                    .frame(width: 150)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isSigningIn)
 
             Spacer()
         }
         .padding(Theme.Spacing.lg)
-    }
-
-    private func signIn() {
-        errorMessage = nil
-        isSigningIn = true
-        let keyWindow = NSApp.keyWindow
-        let firstWindow = NSApp.windows.first
-        let anchor = keyWindow ?? firstWindow
-        let source = keyWindow != nil ? "NSApp.keyWindow" : (firstWindow != nil ? "NSApp.windows.first" : "none")
-        if let anchor {
-            signInAnchorLog.notice("MenuBarView.signIn: resolved anchor source=\(source, privacy: .public) isVisible=\(anchor.isVisible, privacy: .public) isKeyWindow=\(anchor.isKeyWindow, privacy: .public) frame=\(NSStringFromRect(anchor.frame), privacy: .public)")
-            if !anchor.isVisible || anchor.frame.isEmpty {
-                signInAnchorLog.error("MenuBarView.signIn: SUSPECT anchor is hidden or zero-frame — ASWebAuthenticationSession may fault presenting against it")
-            }
-        } else {
-            signInAnchorLog.error("MenuBarView.signIn: SUSPECT no anchor resolved (both NSApp.keyWindow and NSApp.windows.first are nil) — the menu bar popover itself is not an NSWindow subclass usable here")
-        }
-        Task {
-            defer { isSigningIn = false }
-            guard let anchor else {
-                errorMessage = "No window available to present sign-in."
-                return
-            }
-            do {
-                try await authService.startSignIn(anchor: anchor)
-            } catch GrooAuthError.userCancelled {
-                // User dismissed the sign-in sheet; nothing to report.
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
     }
 }
 
@@ -1062,6 +1021,7 @@ private struct PasswordPromptView: View {
     return MenuBarView(
         authService: authService,
         padService: padService,
-        onOpenMainWindow: {}
+        onOpenMainWindow: {},
+        onSignIn: {}
     )
 }

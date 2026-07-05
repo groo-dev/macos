@@ -8,6 +8,7 @@
 import AppKit
 import Quartz
 import SwiftUI
+import GrooAuth
 
 // MARK: - QuickLook Preview Item
 
@@ -233,6 +234,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onOpenMainWindow: { [weak self] in
                 self?.closePopover()
                 self?.showMainWindow()
+            },
+            onSignIn: { [weak self] in
+                self?.beginSignIn()
             }
         )
         popover?.contentViewController = NSHostingController(rootView: menuBarView)
@@ -303,6 +307,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         mainWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // MARK: - Sign In
+
+    /// ASWebAuthenticationSession must be presented from a stable window. The
+    /// menubar popover is `.transient`, so it gets torn down the instant the
+    /// auth sheet takes key focus — presenting against it kills the app
+    /// (SafariViewService faults, process SIGKILLed). So popover-initiated
+    /// sign-in is routed here: close the popover, bring up the real main
+    /// window, and anchor the flow to it.
+    @MainActor
+    func beginSignIn() {
+        closePopover()
+        showMainWindow()
+        guard let anchor = mainWindow else {
+            NSLog("[Auth] beginSignIn: no main window to anchor to")
+            return
+        }
+        Task { @MainActor in
+            do {
+                try await authService.startSignIn(anchor: anchor)
+            } catch GrooAuthError.userCancelled {
+                // User dismissed the sheet — nothing to do.
+            } catch {
+                NSLog("[Auth] sign-in failed: \(error)")
+            }
+        }
     }
 
     // MARK: - QuickLook Preview
