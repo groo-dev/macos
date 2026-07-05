@@ -37,6 +37,10 @@ class PushService {
 
     private let keychain = KeychainService()
 
+    /// Wired up by `AppDelegate` after both services are constructed. Used to obtain
+    /// the OAuth access token for device registration requests.
+    weak var authService: AuthService?
+
     // Callback for when a sync notification is received
     var onSyncRequested: (() -> Void)?
 
@@ -74,12 +78,10 @@ class PushService {
         try keychain.save(tokenString, for: KeychainService.Key.deviceToken)
         deviceToken = tokenString
 
-        // Get PAT for auth
-        guard let patToken = try? keychain.loadString(for: KeychainService.Key.patToken) else {
-            print("[PushService] ERROR: No PAT token in keychain")
+        guard let authService else {
+            print("[PushService] ERROR: No AuthService wired, can't register device")
             throw PushError.noAuthToken
         }
-        print("[PushService] PAT token: \(patToken.prefix(20))...")
 
         // Determine environment
         #if DEBUG
@@ -106,18 +108,31 @@ class PushService {
         let url = Config.accountsAPIBaseURL.appendingPathComponent("v1/devices")
         print("[PushService] URL: \(url.absoluteString)")
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(patToken)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONEncoder().encode(registration)
+        let body = try JSONEncoder().encode(registration)
+
+        func send(_ accessToken: String) async throws -> (Data, HTTPURLResponse) {
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.httpBody = body
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("[PushService] ERROR: Invalid response type")
+                throw PushError.registrationFailed
+            }
+            return (data, httpResponse)
+        }
 
         print("[PushService] Sending registration request...")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        var (data, httpResponse) = try await send(authService.accessToken())
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            print("[PushService] ERROR: Invalid response type")
-            throw PushError.registrationFailed
+        if httpResponse.statusCode == 401 {
+            // Token looked valid but the server rejected it — force one refresh
+            // and retry exactly once; a second 401 falls through and fails below.
+            let refreshedToken = try await authService.forceRefreshAccessToken()
+            (data, httpResponse) = try await send(refreshedToken)
         }
 
         let responseBody = String(data: data, encoding: .utf8) ?? "empty"
@@ -136,7 +151,7 @@ class PushService {
     func unregisterDeviceToken() async throws {
         guard let token = deviceToken else { return }
 
-        guard let patToken = try? keychain.loadString(for: KeychainService.Key.patToken) else {
+        guard let authService else {
             // Just clear local state if no auth
             try? keychain.delete(for: KeychainService.Key.deviceToken)
             deviceToken = nil
@@ -145,12 +160,23 @@ class PushService {
         }
 
         let url = Config.accountsAPIBaseURL.appendingPathComponent("v1/devices/\(token)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue("Bearer \(patToken)", forHTTPHeaderField: "Authorization")
+
+        func send(_ accessToken: String) async throws -> HTTPURLResponse? {
+            var request = URLRequest(url: url)
+            request.httpMethod = "DELETE"
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            let (_, response) = try await URLSession.shared.data(for: request)
+            return response as? HTTPURLResponse
+        }
 
         do {
-            let _ = try await URLSession.shared.data(for: request)
+            let accessToken = try await authService.accessToken()
+            var httpResponse = try await send(accessToken)
+
+            if httpResponse?.statusCode == 401 {
+                let refreshedToken = try await authService.forceRefreshAccessToken()
+                httpResponse = try await send(refreshedToken)
+            }
         } catch {
             // Ignore errors during unregistration
         }

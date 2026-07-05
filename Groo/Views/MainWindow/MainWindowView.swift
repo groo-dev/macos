@@ -327,7 +327,7 @@ private struct UnlockView: View {
 
 #Preview {
     let authService = AuthService()
-    let apiClient = APIClient(baseURL: URL(string: "https://pad.groo.dev")!)
+    let apiClient = APIClient(baseURL: Config.padAPIBaseURL)
     let padService = PadService(api: apiClient)
 
     return MainWindowView(

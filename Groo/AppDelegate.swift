@@ -177,10 +177,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func setupServices() {
-        apiClient = APIClient(baseURL: Config.padAPIBaseURL)
-        authService = AuthService()
+        let authService = AuthService()
+        self.authService = authService
+        apiClient = APIClient(
+            baseURL: Config.padAPIBaseURL,
+            tokenProvider: { try await authService.accessToken() },
+            forceRefresh: { try await authService.forceRefreshAccessToken() }
+        )
         padService = PadService(api: apiClient)
         pushService = PushService()
+        pushService.authService = authService
 
         // Connect push service to sync service (works even when locked)
         // This pulls encrypted data to local cache - decryption happens when user unlocks
