@@ -40,7 +40,7 @@ struct MenuBarView: View {
     @Bindable var authService: AuthService
     @Bindable var padService: PadService
     var onOpenMainWindow: () -> Void
-    var onSignIn: () -> Void
+    var onSignIn: @MainActor () -> Void
 
     @State private var newItemText = ""
     @State private var selectedIndex: Int? = nil
@@ -885,7 +885,7 @@ private struct LoginPromptView: View {
     /// popover and anchors `ASWebAuthenticationSession` to the stable main
     /// window. The popover's own `_NSPopoverWindow` is transient and is torn
     /// down under the presenting sheet — anchoring to it crashes the app.
-    var onSignIn: () -> Void
+    var onSignIn: @MainActor () -> Void
 
     var body: some View {
         VStack(spacing: Theme.Spacing.lg) {
