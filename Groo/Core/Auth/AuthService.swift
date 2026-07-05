@@ -62,7 +62,7 @@ final class AuthService {
         do {
             try legacyKeychain.delete(for: KeychainService.Key.patToken)
         } catch {
-            log.fault("Legacy PAT migration: failed to delete pat_token: \(String(describing: error), privacy: .public)")
+            log.fault("Legacy PAT migration: failed to delete pat_token: \(String(describing: error), privacy: .private)")
         }
     }
 
@@ -78,12 +78,12 @@ final class AuthService {
     /// Presents the OAuth web sign-in flow anchored to `anchor`. On success,
     /// `isAuthenticated`/`currentUserEmail` update via `stateStream`.
     func startSignIn(anchor: NSWindow) async throws {
-        log.notice("startSignIn: entry anchorClass=\(NSStringFromClass(type(of: anchor)), privacy: .public) isKeyWindow=\(anchor.isKeyWindow, privacy: .public) isVisible=\(anchor.isVisible, privacy: .public) frame=\(NSStringFromRect(anchor.frame), privacy: .public)")
         do {
             _ = try await session.signIn(presentationAnchor: anchor)
-            log.notice("startSignIn: success")
         } catch {
-            log.error("startSignIn: FAILED error=\(String(describing: error), privacy: .public)")
+            // Keep the error payload .private — it can carry a server message or
+            // URL. The error is rethrown so the UI still surfaces it to the user.
+            log.error("startSignIn failed: \(String(describing: error), privacy: .private)")
             throw error
         }
     }
