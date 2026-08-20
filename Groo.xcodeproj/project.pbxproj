@@ -554,7 +554,7 @@
 			repositoryURL = "https://github.com/groo-dev/auth-swift.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.0.2;
+				minimumVersion = 0.0.3;
 			};
 		};
 		1BC8B11B2F15C5AD009FCD05 /* XCRemoteSwiftPackageReference "Zoomable" */ = {

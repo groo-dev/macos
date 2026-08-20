@@ -24,15 +24,12 @@ enum GrooAuthFactory {
         #endif
 
         return GrooAuthConfig(
-            issuer: URL(string: "https://accounts.groo.dev")!,
+            issuer: URL(string: "https://me.groo.dev")!,
             clientId: clientId,
             redirectURI: redirect,
             scopes: [
                 "openid", "profile", "email", "offline_access",
                 "pad:read", "pad:write",
-                "pass:read", "pass:write",
-                "tasks:read", "tasks:write",
-                "drive:read", "drive:write",
             ],
             keychainService: service,
             // No AutoFill/Share-extension keychain sharing requirement on macOS —
