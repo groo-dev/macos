@@ -561,8 +561,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ryohey/Zoomable.git";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = revision;
+				revision = 27463744a1c82e550959703153bd6f3c62fef906;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
