@@ -10,7 +10,7 @@ import Foundation
 // MARK: - Encrypted Payload
 
 /// Encrypted data with IV and version info
-struct PadEncryptedPayload: Codable, Equatable {
+nonisolated struct PadEncryptedPayload: Codable, Equatable, Sendable {
     let ciphertext: String  // base64 encoded
     let iv: String          // base64 encoded, 12 bytes
     let version: Int        // encryption version for future migrations
@@ -19,7 +19,7 @@ struct PadEncryptedPayload: Codable, Equatable {
 // MARK: - File Attachment
 
 /// File attachment with encrypted metadata
-struct PadFileAttachment: Codable, Identifiable, Equatable {
+nonisolated struct PadFileAttachment: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let encryptedName: PadEncryptedPayload
     let size: Int           // encrypted size
@@ -30,7 +30,7 @@ struct PadFileAttachment: Codable, Identifiable, Equatable {
 // MARK: - List Item
 
 /// List item with encrypted text and optional files
-struct PadListItem: Codable, Identifiable, Equatable {
+nonisolated struct PadListItem: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let encryptedText: PadEncryptedPayload
     let files: [PadFileAttachment]
@@ -40,7 +40,7 @@ struct PadListItem: Codable, Identifiable, Equatable {
 // MARK: - Scratchpad
 
 /// Scratchpad with encrypted content
-struct PadScratchpad: Codable, Identifiable, Equatable {
+nonisolated struct PadScratchpad: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let encryptedContent: PadEncryptedPayload
     let files: [PadFileAttachment]
@@ -51,7 +51,7 @@ struct PadScratchpad: Codable, Identifiable, Equatable {
 // MARK: - User State
 
 /// Complete user state from the API
-struct PadUserState: Codable, Equatable {
+nonisolated struct PadUserState: Codable, Equatable, Sendable {
     let activeId: String
     let scratchpads: [String: PadScratchpad]
     let list: [PadListItem]
@@ -63,7 +63,7 @@ struct PadUserState: Codable, Equatable {
 // MARK: - Device Token
 
 /// APNs device token for push notifications
-struct PadDeviceToken: Codable, Equatable {
+nonisolated struct PadDeviceToken: Codable, Equatable, Sendable {
     let token: String
     let platform: String    // "macos" or "ios"
     let environment: String // "production" or "development"

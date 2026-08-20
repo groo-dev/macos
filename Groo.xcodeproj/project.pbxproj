@@ -42,6 +42,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		1BCF124B2F128E5000D7FC9B /* Exceptions for "Groo" folder in "Groo" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 1BCF123C2F128E5000D7FC9B /* Groo */;
+		};
 		1B68BC722F12F447009FC0DA /* Exceptions for "ShareExtension" folder in "ShareExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -62,6 +69,9 @@
 		};
 		1BCF123F2F128E5000D7FC9B /* Groo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1BCF124B2F128E5000D7FC9B /* Exceptions for "Groo" folder in "Groo" target */,
+			);
 			path = Groo;
 			sourceTree = "<group>";
 		};

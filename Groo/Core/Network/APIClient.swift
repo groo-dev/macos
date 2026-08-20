@@ -18,7 +18,7 @@ enum APIError: Error {
     case unauthorized
 }
 
-struct APIResponse<T: Decodable>: Decodable {
+nonisolated struct APIResponse<T: Decodable>: Decodable {
     let data: T?
     let error: String?
 }
@@ -224,7 +224,7 @@ actor APIClient {
 
 // MARK: - Response Types
 
-struct FileUploadResponse: Decodable {
+nonisolated struct FileUploadResponse: Decodable, Sendable {
     let id: String
     let size: Int
     let r2Key: String
@@ -250,6 +250,6 @@ extension APIClient {
 
 // MARK: - Additional Response Types
 
-struct AddItemResponse: Decodable {
+nonisolated struct AddItemResponse: Decodable, Sendable {
     let success: Bool
 }

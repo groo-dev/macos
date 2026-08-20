@@ -40,7 +40,7 @@ struct MenuBarView: View {
     @Bindable var authService: AuthService
     @Bindable var padService: PadService
     var onOpenMainWindow: () -> Void
-    var onSignIn: @MainActor () -> Void
+    var onSignIn: @MainActor @Sendable () -> Void
 
     @State private var newItemText = ""
     @State private var selectedIndex: Int? = nil
@@ -53,7 +53,9 @@ struct MenuBarView: View {
     var body: some View {
         VStack(spacing: 0) {
             if !authService.isAuthenticated {
-                LoginPromptView(authService: authService, onSignIn: onSignIn)
+                LoginPromptView(authService: authService) {
+                    onSignIn()
+                }
             } else if !padService.isUnlocked {
                 PasswordPromptView(authService: authService, padService: padService)
             } else {
@@ -885,7 +887,7 @@ private struct LoginPromptView: View {
     /// popover and anchors `ASWebAuthenticationSession` to the stable main
     /// window. The popover's own `_NSPopoverWindow` is transient and is torn
     /// down under the presenting sheet — anchoring to it crashes the app.
-    var onSignIn: @MainActor () -> Void
+    var onSignIn: @MainActor @Sendable () -> Void
 
     var body: some View {
         VStack(spacing: Theme.Spacing.lg) {

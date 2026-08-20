@@ -64,9 +64,9 @@ class ShareViewController: NSViewController {
         }
 
         let group = DispatchGroup()
-        var items: [SharedItem] = []
+        let items = SharedItemAccumulator()
 
-        for attachment in attachments {
+        for (index, attachment) in attachments.enumerated() {
             group.enter()
 
             // Check for plain text
@@ -74,7 +74,7 @@ class ShareViewController: NSViewController {
                 attachment.loadItem(forTypeIdentifier: UTType.plainText.identifier) { data, error in
                     defer { group.leave() }
                     if let text = data as? String {
-                        items.append(.text(text))
+                        items.insert(.text(text), at: index)
                     }
                 }
             }
@@ -84,9 +84,9 @@ class ShareViewController: NSViewController {
                     defer { group.leave() }
                     if let url = data as? URL {
                         if url.isFileURL {
-                            items.append(.file(url))
+                            items.insert(.file(url), at: index)
                         } else {
-                            items.append(.url(url))
+                            items.insert(.url(url), at: index)
                         }
                     }
                 }
@@ -96,7 +96,7 @@ class ShareViewController: NSViewController {
                 attachment.loadItem(forTypeIdentifier: UTType.fileURL.identifier) { data, error in
                     defer { group.leave() }
                     if let url = data as? URL {
-                        items.append(.file(url))
+                        items.insert(.file(url), at: index)
                     }
                 }
             }
@@ -106,7 +106,7 @@ class ShareViewController: NSViewController {
         }
 
         group.notify(queue: .main) { [weak self] in
-            self?.sharedItems = items
+            self?.sharedItems = items.orderedSnapshot()
             self?.updateView()
         }
     }
@@ -196,7 +196,7 @@ class ShareViewController: NSViewController {
 
 // MARK: - Models
 
-enum SharedItem {
+enum SharedItem: Sendable {
     case text(String)
     case url(URL)
     case file(URL)
@@ -218,6 +218,23 @@ enum SharedItem {
         case .url: return "link"
         case .file: return "doc"
         }
+    }
+}
+
+private final class SharedItemAccumulator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var itemsByIndex: [Int: SharedItem] = [:]
+
+    func insert(_ item: SharedItem, at index: Int) {
+        lock.lock()
+        itemsByIndex[index] = item
+        lock.unlock()
+    }
+
+    func orderedSnapshot() -> [SharedItem] {
+        lock.lock()
+        defer { lock.unlock() }
+        return itemsByIndex.keys.sorted().compactMap { itemsByIndex[$0] }
     }
 }
 

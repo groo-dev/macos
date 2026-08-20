@@ -43,11 +43,20 @@ class PadService {
     private var encryptionKey: SymmetricKey?
     private var encryptionSalt: Data?
 
+    convenience init(api: APIClient) {
+        self.init(
+            api: api,
+            crypto: CryptoService(),
+            keychain: KeychainService(),
+            localStore: LocalStore.shared
+        )
+    }
+
     init(
         api: APIClient,
-        crypto: CryptoService = CryptoService(),
-        keychain: KeychainService = KeychainService(),
-        localStore: LocalStore = LocalStore.shared
+        crypto: CryptoService,
+        keychain: KeychainService,
+        localStore: LocalStore
     ) {
         self.api = api
         self.crypto = crypto
@@ -69,7 +78,7 @@ class PadService {
     func setupEncryption(password: String) async throws {
         let salt = crypto.generateSalt()
         let key = try crypto.deriveKey(password: password, salt: salt)
-        let testPayload = try crypto.createTestPayload(using: key)
+        _ = try crypto.createTestPayload(using: key)
 
         // Store locally
         encryptionKey = key

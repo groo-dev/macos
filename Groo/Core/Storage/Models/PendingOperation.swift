@@ -41,7 +41,7 @@ final class PendingOperation {
 
 // MARK: - Create Payload
 
-struct CreateItemPayload: Codable {
+nonisolated struct CreateItemPayload: Codable, Sendable {
     let item: PadListItem
 }
 

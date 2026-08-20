@@ -20,7 +20,7 @@ private let encryptionVersion = 1
 
 // MARK: - Types
 
-struct EncryptedPayload: Codable {
+nonisolated struct EncryptedPayload: Codable, Sendable {
     let ciphertext: String  // base64 encoded
     let iv: String          // base64 encoded
     let version: Int
