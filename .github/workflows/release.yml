@@ -39,6 +39,7 @@ jobs:
           token: ${{ secrets.OPS_API_TOKEN }}
           environment: production
           bump: patch
+          bump-build: true
           artifacts: Groo-*.dmg
 
       - name: Import certificate and profiles
@@ -79,10 +80,26 @@ jobs:
           echo "EXT_PROFILE_UUID=$EXT_UUID" >> $GITHUB_ENV
 
       - name: Set version
+        # Passed through env, never expanded into the script text. This job
+        # imports Apple signing certificates and provisioning profiles, so a
+        # value that reached bash as code would run with signing material in
+        # the keychain. The values come from our own API today; that is a
+        # reason they are trustworthy now, not a reason to interpolate them.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          agvtool new-marketing-version $VERSION
-          agvtool new-version -all ${{ github.run_number }}
+          # Fail here rather than in xcodebuild. An empty or non-numeric build
+          # would make agvtool set a nonsense CURRENT_PROJECT_VERSION and the
+          # archive would fail much later, pointing at the wrong thing.
+          case "$BUILD" in
+            ''|*[!0-9]*)
+              echo "::error::ops returned no usable build number ('$BUILD') - is bump-build set on the Get version step?"
+              exit 1
+              ;;
+          esac
+          agvtool new-marketing-version "$VERSION"
+          agvtool new-version -all "$BUILD"
 
       - name: Build and archive
         run: |
