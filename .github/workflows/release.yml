@@ -39,7 +39,6 @@ jobs:
           token: ${{ secrets.OPS_API_TOKEN }}
           environment: production
           bump: patch
-          bump-build: true
           artifacts: Groo-*.dmg
 
       - name: Import certificate and profiles
