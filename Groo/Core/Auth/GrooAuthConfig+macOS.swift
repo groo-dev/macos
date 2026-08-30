@@ -21,12 +21,12 @@ enum GrooAuthFactory {
     /// origin — so dropping the bundle id would make this app reject its own
     /// callback under RFC 9207.
     ///
-    /// The previous value, `app_dcbbd7eec5dcfa934f633236fa1770e9`, belonged to the
+    /// The previous value, `app_42d5f5bba779f01e4f236df4d8b9dac5`, belonged to the
     /// catch-all `Groo` application, DELETED on 2026-08-22 (`runtime/CLAUDE.md`,
     /// "The `Groo` catch-all application is DELETED"). It took `Groo macOS` with
     /// it and left this app unable to sign in at all — that file recorded the
     /// replacement as "none" until this client was registered on 2026-08-25.
-    private static let clientId = "client_135a983bd857072b1adc5c9b5ebd2b3e"
+    private static let clientId = "app_42d5f5bba779f01e4f236df4d8b9dac5"
 
     static func makeConfig() -> GrooAuthConfig {
         #if DEBUG
