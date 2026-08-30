@@ -79,7 +79,13 @@ final class AuthService {
     /// `isAuthenticated`/`currentUserEmail` update via `stateStream`.
     func startSignIn(anchor: NSWindow) async throws {
         do {
-            _ = try await session.signIn(presentationAnchor: anchor)
+            // `prompt: .login` because every caller of this is a sign-in control
+            // shown only while signed out. Without it the issuer answers the
+            // cookie the system browser still holds and returns a code with no
+            // screen at all — so signing out and back in silently returned the
+            // same account, with no way to be anybody else. Reported on iOS
+            // 2026-08-31; this app had the identical defect.
+            _ = try await session.signIn(presentationAnchor: anchor, prompt: .login)
         } catch {
             // Keep the error payload .private — it can carry a server message or
             // URL. The error is rethrown so the UI still surfaces it to the user.
